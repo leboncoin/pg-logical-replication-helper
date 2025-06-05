@@ -1,0 +1,18 @@
+[project]
+name = "pg-logical-replication-helper"
+version = "0.1.0"
+description = "This script automates the setup of PostgreSQL logical replication between two database instances. It handles the entire process from creating necessary user and permissions to configuring publications and subscriptions."
+authors = [{ name = "Naeva Mallet" }]
+readme = "README.md"
+license = {text = "BSD-3-Clause"}
+requires-python = ">=3.8"
+dependencies = [
+  "psycopg[binary]>=3.1"
+]
+
+[project.scripts]
+pg-logical-replication-helper = "pg_logical_replication_helper.__main__:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
