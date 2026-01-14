@@ -1,4 +1,4 @@
-[![Tests Status](https://raw.githubusercontent.com/laurentdutheil/pg-logical-replication-helper/badges/test-badge.svg?raw=true)]()
+[![Tests Status](https://raw.githubusercontent.com/laurentdutheil/pg-logical-replication-helper/badges/junit-badge.svg?raw=true)]()
 [![Coverage Status](https://raw.githubusercontent.com/laurentdutheil/pg-logical-replication-helper/badges/coverage-badge.svg?raw=true)]()
 
 # PostgreSQL Logical Replication Helper
