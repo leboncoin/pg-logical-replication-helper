@@ -33,10 +33,10 @@ jobs:
         pytest --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
     - name: Generate badges
       run: |
-        genbadge tests -i htmlcov/junit.xml -o ./junit-badge.svg
-        genbadge coverage -i ./coverage.xml -o ./coverage-badge.svg
+        genbadge tests -i htmlcov/junit.xml -o coverage/junit-badge.svg
+        genbadge coverage -i ./coverage.xml -o coverage/coverage-badge.svg
     - name: commit badges
-      uses: stefanzweifel/git-auto-commit-action@v7
+      uses: JamesIves/github-pages-deploy-action@v4
       with:
-        commit_message: 'Apply badges'
-        file_pattern: 'junit-badge.svg coverage-badge.svg'
+        branch: badges
+        folder: coverage
