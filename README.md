@@ -1,3 +1,6 @@
+[![Tests Status](./junit-badge.svg?dummy=8484744)]()
+[![Coverage Status](./coverage-badge.svg?dummy=8484744)]()
+
 # PostgreSQL Logical Replication Helper
 
 ## Overview
