@@ -1,4 +1,6 @@
 import os
+import re
+import subprocess
 
 import psycopg
 import pytest
@@ -10,6 +12,10 @@ from replication_start import main
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(request):
+    pg_dump_version = subprocess.check_output(["pg_dump", "--version"], text=True,stderr=None)
+    pg_dump_version = re.match("pg_dump.*(\d{2})\..*", pg_dump_version).group(1)
+    os.environ["POSTGRES_VERSION"]= pg_dump_version
+
     compose = DockerCompose(
         context=".",
         compose_file_name="docker-compose.yml",
