@@ -53,7 +53,8 @@ def run_dump_restore_pre(conn_sender_string, db_schemas, conn_receiver_string):
         "-T", "public.spatial_ref_sys",
         "--no-acl",
         "--no-owner",
-        f"--section=pre-data"
+        "--section=pre-data",
+        "-N", "information_schema"
     ]
     for schema in db_schemas:
         command.append("-n")
