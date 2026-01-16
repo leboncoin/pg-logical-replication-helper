@@ -71,6 +71,8 @@ def run_dump_restore_pre(conn_sender_string, db_schemas, conn_receiver_string):
                 print(f"pg_restore pre begin")
                 dump_queries = dump.stdout.read()
                 result = dump_queries.replace("CREATE SCHEMA public;", "")
+                # ignore "\restrict" and "\unrestrict" lines
+                result = re.sub("\\\\(un)?restrict.*\n", "", result)
                 cur.execute(result)
 
                 # Commit of the changes
@@ -153,7 +155,7 @@ def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiv
                 splitlines = dump_str.splitlines()
                 current_query = ""
                 line_before = ""
-                for i in range(0, len(splitlines)-1):
+                for i in range(0, len(splitlines) - 1):
                     # Skip primary key constraints
                     if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
                         line_before = ""
@@ -367,7 +369,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db
     print("end")
 
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     # Initialisation of replication
     script_name = os.path.basename(__file__)
     connection_primary = sys.argv[1]
@@ -378,5 +380,5 @@ if __name__ == '__main__':
     schema_excluded_list = sys.argv[6] if len(
         sys.argv) > 6 else 'information_schema'
     schema_excluded = schema_excluded_list.split(',')
-    
+
     main(script_name, connection_primary, db_name_primary, connection_secondary, db_name_secondary, b_create_db, schema_excluded)
