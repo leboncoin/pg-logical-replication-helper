@@ -1,3 +1,5 @@
+import os
+
 import psycopg
 import pytest
 from testcontainers.compose import DockerCompose
@@ -22,10 +24,12 @@ def setup(request):
     def remove_container():
         compose.stop()
 
+    os.environ["CONN_DB_PRIMARY_FULL"]="postgresql://foo:foopwd@pgfoo:5432/foo_db"
+
     request.addfinalizer(remove_container)
 
 
-def get_connection_url() -> str:
+def get_source_url() -> str:
     host = "localhost"
     port = "15431"
     username = "foo"
@@ -34,9 +38,22 @@ def get_connection_url() -> str:
     return f"host={host} dbname={database} user={username} password={password} port={port}"
 
 
+def get_destination_url() -> str:
+    host = "localhost"
+    port = "15432"
+    username = "bar"
+    password = "barpwd"
+    database = "bar_db"
+    return f"host={host} dbname={database} user={username} password={password} port={port}"
+
+
 def test_main():
-    with psycopg.connect(get_connection_url()) as conn:
+    main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", False, 'information_schema')
+    
+    with psycopg.connect(get_destination_url()) as conn:
         with conn.cursor() as cur:
             cur.execute("select * from table_to_replicate")
+            cur.execute("select * from table_to_replicate2")
+            cur.execute("select * from table_to_replicate3")
             conn.commit()
-            
+                      
