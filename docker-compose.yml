@@ -1,0 +1,47 @@
+services:
+  pgfoo:
+    image: 'postgres:${POSTGRES_VERSION}-alpine'
+    container_name: pgfoo
+    ports:
+      - 15431:5432
+    environment:
+      - POSTGRES_USER=foo
+      - POSTGRES_PASSWORD=foopwd
+      - POSTGRES_DB=foo_db
+    networks:
+      - pg-network
+    volumes:
+      - foo-data:/var/lib/postgresql/data/
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+
+  pgbar:
+    image: 'postgres:${POSTGRES_VERSION}-alpine'
+    container_name: pgbar
+    ports:
+      - 15432:5432
+    environment:
+      - POSTGRES_USER=bar
+      - POSTGRES_PASSWORD=barpwd
+      - POSTGRES_DB=bar_db
+    networks:
+      - pg-network
+    volumes:
+      - bar-data:/var/lib/postgresql/data/
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+
+networks:
+  pg-network:
+    driver: bridge
+
+volumes:
+  foo-data:
+    name: pgfoo-data
+  bar-data:
+    name: pgbar-data
