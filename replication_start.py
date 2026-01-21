@@ -282,7 +282,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
             if schema_excluded_str != "":
                 query_publication = query_publication + f" AND schemaname NOT IN ({schema_excluded_str})"
             results = execute_query(conn_primary, query_publication)
-            if results:
+            if results: 
                 for schema, table in results:
                     print(
                         f"Add table {schema}.{table} to publication {unique_name}")
