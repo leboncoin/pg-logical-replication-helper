@@ -56,7 +56,7 @@ def get_destination_url() -> str:
 
 
 def test_main():
-    main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", False, 'information_schema')
+    main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", None)
     
     with psycopg.connect(get_destination_url()) as conn:
         with conn.cursor() as cur:

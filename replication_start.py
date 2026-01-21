@@ -179,7 +179,7 @@ def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiv
     print(f"run_dump_restore_post_without_pk fin")
 
 
-def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db, list_schema_excluded):
+def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_schema_excluded):
     # Random replication password
     replication_password = generate_password()
 
@@ -258,19 +258,6 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db
                 execute_query(conn_primary, f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO replication; "
                                             f"GRANT USAGE ON SCHEMA {schema} TO replication", fetch=False)
                 print(f"GRANT right on {schema} to replication user")
-
-            if create_db:
-                # Create database on new host
-                print(
-                    f" Create database {db_secondary} on host {conn_secondary}")
-                execute_query(conn_secondary,
-                              # to fix with the right owner
-                              f"CREATE DATABASE {db_secondary} WITH OWNER 'admin'", fetch=False)
-
-                print(
-                    f" Create extension pg_stat_statements on db {db_secondary} on host {conn_secondary}")
-                execute_query(conn_secondary,
-                              f"CREATE EXTENSION pg_stat_statements", fetch=False)
 
             # Section pre-data
             run_dump_restore_pre(conn_primary,
@@ -377,9 +364,7 @@ if __name__ == '__main__':
     db_name_primary = sys.argv[2]
     connection_secondary = sys.argv[3]
     db_name_secondary = sys.argv[4] if len(sys.argv) > 4 else db_name_primary
-    b_create_db = True if len(sys.argv) > 5 and sys.argv[5] == "true" else False
-    schema_excluded_list = sys.argv[6] if len(
-        sys.argv) > 6 else 'information_schema'
+    schema_excluded_list = sys.argv[5] if len(sys.argv) > 5 else None
     schema_excluded = schema_excluded_list.split(',')
 
-    main(script_name, connection_primary, db_name_primary, connection_secondary, db_name_secondary, b_create_db, schema_excluded)
+    main(script_name, connection_primary, db_name_primary, connection_secondary, db_name_secondary, schema_excluded)
