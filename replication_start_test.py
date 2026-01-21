@@ -10,7 +10,7 @@ from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 from replication_start import main
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup(request):
     pg_dump_version_output = subprocess.check_output(["pg_dump", "--version"], text=True,stderr=None)
     print("Detected pg_dump version : " + pg_dump_version_output)
@@ -58,10 +58,32 @@ def get_destination_url() -> str:
 def test_main():
     main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", None)
     
-    with psycopg.connect(get_destination_url()) as conn:
+    with psycopg.connect(get_destination_url(), autocommit=True) as conn:
         with conn.cursor() as cur:
-            cur.execute("select * from table_to_replicate")
-            cur.execute("select * from table_to_replicate2")
-            cur.execute("select * from table_to_replicate3")
-            conn.commit()
+            results = cur.execute("select count(*) from included.table_to_replicate")
+            for count in results:
+                assert count[0] == 2
+            results = cur.execute("select count(*) from included.table_to_replicate2")
+            for count in results:
+                assert count[0] == 2
+            results = cur.execute("select count(*) from excluded.table_to_replicate3")
+            for count in results:
+                assert count[0] == 2
+     
                       
+def test_main_with_excluded_schema():
+    main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", ["excluded"])
+    
+    with psycopg.connect(get_destination_url(), autocommit=True) as conn:
+        with conn.cursor() as cur:
+            results = cur.execute("select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'")
+            for schema, table in results:
+                assert schema != "excluded"
+                assert table in ["table_to_replicate", "table_to_replicate2"]
+            results = cur.execute("select count(*) from included.table_to_replicate")
+            for count in results:
+                assert count[0] == 2
+            results = cur.execute("select count(*) from included.table_to_replicate2")
+            for count in results:
+                assert count[0] == 2
+        

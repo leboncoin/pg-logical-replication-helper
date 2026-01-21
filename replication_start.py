@@ -110,6 +110,8 @@ def run_dump_restore_post_onlypk(conn_sender_string, db_schemas, conn_receiver_s
             try:
                 print(f"pg_restore post début")
                 dump_str = dump.stdout.read()
+                # ignore "\restrict" and "\unrestrict" lines
+                dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
                 splitlines = dump_str.splitlines()
                 current_query = ""
                 for i in range(0, len(splitlines)-1):
@@ -153,6 +155,8 @@ def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiv
             try:
                 print(f"pg_restore post (without PK) début")
                 dump_str = dump.stdout.read()
+                # ignore "\restrict" and "\unrestrict" lines
+                dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
                 splitlines = dump_str.splitlines()
                 current_query = ""
                 line_before = ""
@@ -197,6 +201,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     unique_name = f"{db_primary}_{date_start}"
 
     # Retrieve DB Infos
+    schema_excluded_str = ""
     if list_schema_excluded is None:
         schema_query = "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT ILIKE 'pg_%'"
     else:
@@ -273,8 +278,10 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
             execute_query(conn_primary,
                           f"CREATE PUBLICATION publication_{unique_name};", fetch=False)
             # Add tables to publication
-            results = execute_query(
-                conn_primary, f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'")
+            query_publication = f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'"
+            if schema_excluded_str != "":
+                query_publication = query_publication + f" AND schemaname NOT IN ({schema_excluded_str})"
+            results = execute_query(conn_primary, query_publication)
             if results:
                 for schema, table in results:
                     print(
