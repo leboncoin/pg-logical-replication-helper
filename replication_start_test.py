@@ -1,3 +1,4 @@
+import datetime
 import os
 import re
 import subprocess
@@ -11,8 +12,10 @@ from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
 from replication_start import main
 
+FAKE_TIME = datetime.datetime(2026, 1, 22, 10, 1, 25)
 
-@pytest.fixture(scope="function", autouse=True)
+
+@pytest.fixture(scope="module", autouse=True)
 def setup(request):
     os.environ["POSTGRES_VERSION"] = detect_pg_dump_version()
 
@@ -35,6 +38,39 @@ def setup(request):
     request.addfinalizer(remove_container)
 
 
+@pytest.fixture(scope="function", autouse=True)
+def patch_datetime_now(monkeypatch):
+    class MockedDateTime(datetime.datetime):
+        @classmethod
+        def now(cls, **kwargs):
+            return FAKE_TIME
+
+    monkeypatch.setattr(datetime, 'datetime', MockedDateTime)
+
+
+@pytest.fixture(scope="function", autouse=True)
+def setup_data(request):
+    date_start = FAKE_TIME.strftime("%Y%m%d_%H%M%S")
+    unique_name = f"foo_db_{date_start}"
+
+    def clear_data():
+        with psycopg.connect(get_destination_url(), autocommit=True) as conn:
+            conn.execute(f"ALTER SUBSCRIPTION subscription_{unique_name} DISABLE")
+            conn.execute(f"ALTER SUBSCRIPTION subscription_{unique_name} SET (slot_name=none)")
+            conn.execute(f"DROP SUBSCRIPTION subscription_{unique_name}")
+            conn.execute(f"select pid, usename, state from pg_stat_activity where datname = 'foo_db'")
+
+        with psycopg.connect(get_destination_url("postgres"), autocommit=True) as conn:
+            conn.execute("DROP DATABASE bar_db")
+            conn.execute("CREATE DATABASE bar_db")
+
+        with psycopg.connect(get_source_url(), autocommit=True) as conn:
+            conn.execute(f"SELECT pg_drop_replication_slot('subscription_{unique_name}')")
+            conn.execute(f"DROP PUBLICATION publication_{unique_name}")
+
+    request.addfinalizer(clear_data)
+
+
 def get_source_url() -> str:
     host = "localhost"
     port = "15431"
@@ -44,12 +80,12 @@ def get_source_url() -> str:
     return f"host={host} dbname={database} user={username} password={password} port={port}"
 
 
-def get_destination_url() -> str:
+def get_destination_url(db="bar_db") -> str:
     host = "localhost"
     port = "15432"
     username = "bar"
     password = "barpwd"
-    database = "bar_db"
+    database = db
     return f"host={host} dbname={database} user={username} password={password} port={port}"
 
 
@@ -82,7 +118,7 @@ def detect_pg_dump_version() -> str | Any:
     return pg_dump_version
 
 
-def count_records(conn: psycopg.Connection[Any], schema:str, table: str) -> int:
-    query = sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(schema, table))
+def count_records(conn: psycopg.Connection[Any], schema: str, table: str) -> int:
+    query = sql.Composed([sql.SQL("SELECT count(*) FROM "), sql.Identifier(schema, table)])
     result = conn.execute(query).fetchone()
     return result[0]
