@@ -32,10 +32,12 @@ jobs:
       run: |
         pytest --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
     - name: Generate badges
+      if: github.ref == 'refs/heads/main'
       run: |
         genbadge tests -i htmlcov/junit.xml -o coverage/junit-badge.svg
         genbadge coverage -i ./coverage.xml -o coverage/coverage-badge.svg
     - name: commit badges
+      if: github.ref == 'refs/heads/main'
       uses: JamesIves/github-pages-deploy-action@v4
       with:
         branch: badges
