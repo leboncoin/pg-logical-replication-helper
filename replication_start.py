@@ -9,6 +9,8 @@ import re
 import secrets
 import string
 
+WAITING_PROGRESS_IN_SECONDS = 10
+
 
 def generate_password(length=32):
     characters = string.ascii_letters + string.digits
@@ -336,7 +338,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
                     print(
                         f"Replication progress : {results[0][0]}/{results[0][1]}")
 
-                    time.sleep(10)
+                    time.sleep(WAITING_PROGRESS_IN_SECONDS)
                 except:
                     # If the query fails, it means there are no more tables in non-ready state
                     break

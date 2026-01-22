@@ -10,7 +10,7 @@ import pytest
 from testcontainers.compose import DockerCompose
 from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
-from replication_start import main
+import replication_start
 
 FAKE_TIME = datetime.datetime(2026, 1, 22, 10, 1, 25)
 
@@ -46,13 +46,13 @@ def patch_datetime_now(monkeypatch):
             return FAKE_TIME
 
     monkeypatch.setattr(datetime, 'datetime', MockedDateTime)
+    monkeypatch.setattr(replication_start, "WAITING_PROGRESS_IN_SECONDS", 0)
 
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_data(request):
     date_start = FAKE_TIME.strftime("%Y%m%d_%H%M%S")
     unique_name = f"foo_db_{date_start}"
-
     def clear_data():
         with psycopg.connect(get_destination_url(), autocommit=True) as conn:
             conn.execute(f"ALTER SUBSCRIPTION subscription_{unique_name} DISABLE")
@@ -90,7 +90,7 @@ def get_destination_url(db="bar_db") -> str:
 
 
 def test_main():
-    main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", None)
+    replication_start.main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", None)
 
     with psycopg.connect(get_destination_url(), autocommit=True) as conn:
         assert count_records(conn, "included", "table_to_replicate") == 2
@@ -99,7 +99,7 @@ def test_main():
 
 
 def test_main_with_excluded_schema():
-    main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", ["excluded"])
+    replication_start.main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", ["excluded"])
 
     with psycopg.connect(get_destination_url(), autocommit=True) as conn:
         with conn.cursor() as cur:
