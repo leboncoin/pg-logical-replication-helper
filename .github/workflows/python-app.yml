@@ -70,7 +70,7 @@ jobs:
         POSTGRES_ORIGIN_VERSION: ${{matrix.origin}}
         POSTGRES_DESTINATION_VERSION: ${{matrix.destination}}
       run: |
-        pytest --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
+        pytest -s --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
     - name: Generate badges
       if: github.ref == 'refs/heads/main'
       run: |
