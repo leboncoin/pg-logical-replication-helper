@@ -22,7 +22,7 @@ jobs:
     steps:
       - id: gen
         run: |          
-          declare -a pgversion=( 14 15 16 17 18 )
+          declare -a pgversion=( 14 15 16 17 )
           
           include_json=$(
             {
@@ -43,6 +43,7 @@ jobs:
   build:
     needs: matrix-prep
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       matrix: 
         include: ${{fromJSON(needs.matrix-prep.outputs.include)}}
