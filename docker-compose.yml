@@ -1,6 +1,6 @@
 services:
   pgfoo:
-    image: 'postgres:${POSTGRES_VERSION}-alpine'
+    image: 'postgres:${POSTGRES_ORIGIN_VERSION}-alpine'
     container_name: pgfoo
     ports:
       - 15431:5432
@@ -19,7 +19,7 @@ services:
       - "wal_level=logical"
 
   pgbar:
-    image: 'postgres:${POSTGRES_VERSION}-alpine'
+    image: 'postgres:${POSTGRES_DESTINATION_VERSION}-alpine'
     container_name: pgbar
     ports:
       - 15432:5432
