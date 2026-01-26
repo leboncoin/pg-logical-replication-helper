@@ -9,6 +9,8 @@ import re
 import secrets
 import string
 
+WAITING_PROGRESS_IN_SECONDS = 10
+
 
 def generate_password(length=32):
     characters = string.ascii_letters + string.digits
@@ -110,6 +112,8 @@ def run_dump_restore_post_onlypk(conn_sender_string, db_schemas, conn_receiver_s
             try:
                 print(f"pg_restore post début")
                 dump_str = dump.stdout.read()
+                # ignore "\restrict" and "\unrestrict" lines
+                dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
                 splitlines = dump_str.splitlines()
                 current_query = ""
                 for i in range(0, len(splitlines)-1):
@@ -153,6 +157,8 @@ def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiv
             try:
                 print(f"pg_restore post (without PK) début")
                 dump_str = dump.stdout.read()
+                # ignore "\restrict" and "\unrestrict" lines
+                dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
                 splitlines = dump_str.splitlines()
                 current_query = ""
                 line_before = ""
@@ -179,7 +185,7 @@ def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiv
     print(f"run_dump_restore_post_without_pk fin")
 
 
-def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db, list_schema_excluded):
+def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_schema_excluded):
     # Random replication password
     replication_password = generate_password()
 
@@ -197,6 +203,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db
     unique_name = f"{db_primary}_{date_start}"
 
     # Retrieve DB Infos
+    schema_excluded_str = ""
     if list_schema_excluded is None:
         schema_query = "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT ILIKE 'pg_%'"
     else:
@@ -259,19 +266,6 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db
                                             f"GRANT USAGE ON SCHEMA {schema} TO replication", fetch=False)
                 print(f"GRANT right on {schema} to replication user")
 
-            if create_db:
-                # Create database on new host
-                print(
-                    f" Create database {db_secondary} on host {conn_secondary}")
-                execute_query(conn_secondary,
-                              # to fix with the right owner
-                              f"CREATE DATABASE {db_secondary} WITH OWNER 'admin'", fetch=False)
-
-                print(
-                    f" Create extension pg_stat_statements on db {db_secondary} on host {conn_secondary}")
-                execute_query(conn_secondary,
-                              f"CREATE EXTENSION pg_stat_statements", fetch=False)
-
             # Section pre-data
             run_dump_restore_pre(conn_primary,
                                  db_schemas, conn_secondary)
@@ -286,9 +280,11 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db
             execute_query(conn_primary,
                           f"CREATE PUBLICATION publication_{unique_name};", fetch=False)
             # Add tables to publication
-            results = execute_query(
-                conn_primary, f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'")
-            if results:
+            query_publication = f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'"
+            if schema_excluded_str != "":
+                query_publication = query_publication + f" AND schemaname NOT IN ({schema_excluded_str})"
+            results = execute_query(conn_primary, query_publication)
+            if results: 
                 for schema, table in results:
                     print(
                         f"Add table {schema}.{table} to publication {unique_name}")
@@ -342,7 +338,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, create_db
                     print(
                         f"Replication progress : {results[0][0]}/{results[0][1]}")
 
-                    time.sleep(10)
+                    time.sleep(WAITING_PROGRESS_IN_SECONDS)
                 except:
                     # If the query fails, it means there are no more tables in non-ready state
                     break
@@ -377,9 +373,7 @@ if __name__ == '__main__':
     db_name_primary = sys.argv[2]
     connection_secondary = sys.argv[3]
     db_name_secondary = sys.argv[4] if len(sys.argv) > 4 else db_name_primary
-    b_create_db = True if len(sys.argv) > 5 and sys.argv[5] == "true" else False
-    schema_excluded_list = sys.argv[6] if len(
-        sys.argv) > 6 else 'information_schema'
+    schema_excluded_list = sys.argv[5] if len(sys.argv) > 5 else None
     schema_excluded = schema_excluded_list.split(',')
 
-    main(script_name, connection_primary, db_name_primary, connection_secondary, db_name_secondary, b_create_db, schema_excluded)
+    main(script_name, connection_primary, db_name_primary, connection_secondary, db_name_secondary, schema_excluded)
