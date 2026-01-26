@@ -56,21 +56,22 @@ jobs:
       uses: tj-actions/install-postgresql@v3
       with:
         postgresql-version: ${{matrix.destination}}
+    - name: Install uv
+      uses: astral-sh/setup-uv@v7
     - name: Set up Python 3.10
-      uses: actions/setup-python@v3
+      uses: actions/setup-python@v6
       with:
-        python-version: "3.10"
+        python-version-file: "pyproject.toml"
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        uv sync --locked --all-extras --dev
         pip install genbadge[tests,coverage]
     - name: Test with pytest
       env:
         POSTGRES_ORIGIN_VERSION: ${{matrix.origin}}
         POSTGRES_DESTINATION_VERSION: ${{matrix.destination}}
       run: |
-        pytest -s --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
+        uv run pytest -s --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
     - name: Generate badges
       if: github.ref == 'refs/heads/main'
       run: |
