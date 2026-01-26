@@ -1,5 +1,5 @@
-[![Tests Status](https://laurentdutheil.github.io/pg-logical-replication-helper/junit-badge.svg?raw=true)](https://laurentdutheil.github.io/pg-logical-replication-helper)
-[![Coverage Status](https://laurentdutheil.github.io/pg-logical-replication-helper/coverage-badge.svg?raw=true)](https://laurentdutheil.github.io/pg-logical-replication-helper)
+[![Tests Status](https://leboncoin.github.io/pg-logical-replication-helper/junit-badge.svg?raw=true)](https://leboncoin.github.io/pg-logical-replication-helper)
+[![Coverage Status](https://leboncoin.github.io/pg-logical-replication-helper/coverage-badge.svg?raw=true)](https://leboncoin.github.io/pg-logical-replication-helper)
 
 # PostgreSQL Logical Replication Helper
 
