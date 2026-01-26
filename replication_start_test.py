@@ -17,7 +17,12 @@ FAKE_TIME = datetime.datetime(2026, 1, 22, 10, 1, 25)
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(request):
-    os.environ["POSTGRES_VERSION"] = detect_pg_dump_version()
+    pg_dump_version = detect_pg_dump_version()
+    if "POSTGRES_ORIGIN_VERSION" not in os.environ:
+        os.environ["POSTGRES_ORIGIN_VERSION"] = pg_dump_version
+
+    if "POSTGRES_DESTINATION_VERSION" not in os.environ:
+        os.environ["POSTGRES_DESTINATION_VERSION"] = pg_dump_version
 
     compose = DockerCompose(
         context=".",

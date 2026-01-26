@@ -1,7 +1,7 @@
 # This workflow will install Python dependencies, run tests and lint with a single version of Python
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-name: Python application
+name: Replication Helper
 
 on:
   push:
@@ -13,12 +13,49 @@ permissions:
   contents: write
 
 jobs:
-  build:
-
+  matrix-prep:
     runs-on: ubuntu-latest
+
+    outputs: 
+      include: ${{steps.gen.outputs.include}}
+      
+    steps:
+      - id: gen
+        run: |          
+          declare -a pgversion=( 14 15 16 17 )
+          
+          include_json=$(
+            {
+              for i in "${pgversion[@]}"
+              do
+                for j in "${pgversion[@]}"
+                do
+                  if [ "$i" -le "$j" ]; then
+                    jq -n -c "{origin:$i,destination:$j}"
+                  fi
+                done
+              done
+            } | jq -s -c .
+          )
+          
+          echo "include=$include_json" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: matrix-prep
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      matrix: 
+        include: ${{fromJSON(needs.matrix-prep.outputs.include)}}
+    
+    name: " PG-${{matrix.origin}}->PG-${{matrix.destination}} "
 
     steps:
     - uses: actions/checkout@v4
+    - name: Setup PostgreSQL
+      uses: tj-actions/install-postgresql@v3
+      with:
+        postgresql-version: ${{matrix.destination}}
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
@@ -29,8 +66,11 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         pip install genbadge[tests,coverage]
     - name: Test with pytest
+      env:
+        POSTGRES_ORIGIN_VERSION: ${{matrix.origin}}
+        POSTGRES_DESTINATION_VERSION: ${{matrix.destination}}
       run: |
-        pytest --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
+        pytest -s --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
     - name: Generate badges
       if: github.ref == 'refs/heads/main'
       run: |
