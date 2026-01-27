@@ -9,6 +9,8 @@ import re
 import secrets
 import string
 
+from database import Database
+
 WAITING_PROGRESS_IN_SECONDS = 10
 
 
@@ -116,10 +118,10 @@ def run_dump_restore_post_onlypk(conn_sender_string, db_schemas, conn_receiver_s
                 dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
                 splitlines = dump_str.splitlines()
                 current_query = ""
-                for i in range(0, len(splitlines)-1):
+                for i in range(0, len(splitlines) - 1):
                     if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
                         current_query = current_query + \
-                            splitlines[i-1] + splitlines[i]
+                                        splitlines[i - 1] + splitlines[i]
 
                 cur.execute(current_query)
 
@@ -203,35 +205,13 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     unique_name = f"{db_primary}_{date_start}"
 
     # Retrieve DB Infos
-    schema_excluded_str = ""
-    if list_schema_excluded is None:
-        schema_query = "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT ILIKE 'pg_%'"
-    else:
-        schema_excluded_str = ",".join(
-            [f"'{schema}'" for schema in list_schema_excluded])
-        schema_query = f"SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT ILIKE 'pg_%' AND schema_name NOT IN ({schema_excluded_str});"
-    results = execute_query(conn_primary, schema_query)
-    db_schemas = None
-    if results and results[0]:
-        db_schemas = [schema[0] for schema in results]
-
-    results = execute_query(
-        conn_primary, f"SELECT pg_size_pretty(pg_database_size('{db_primary}'))")
-    db_size = None
-    if results and results[0]:
-        db_size = results[0][0]
-
-    results = execute_query(
-        conn_primary, "SELECT count(*) from pg_stat_user_tables")
-    db_tables = None
-    if results and results[0]:
-        db_tables = results[0][0]
-
-    print(
-        f"$today - Starting pg_dump from server {conn_primary} database {db_primary} {db_size}")
-    print(f"db_schemas : {db_schemas}")
-    print(f"db_size : {db_size}")
-    print(f"db_tables : {db_tables}")
+    primary = Database(conn_primary, db_primary)
+    db_infos = primary.retrieve_db_infos(list_schema_excluded)
+    db_schemas = db_infos.db_schemas
+    print(f"$today - Starting pg_dump from server {conn_primary} database {db_primary} {db_infos.db_size}")
+    print(f"db_schemas : {db_infos.db_schemas}")
+    print(f"db_size : {db_infos.db_size}")
+    print(f"db_tables : {db_infos.db_tables}")
 
     # # Check if replication is already started
     query = f"select subslotname from pg_subscription where subname like 'subscription_{db_secondary}_%'"
@@ -281,10 +261,10 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
                           f"CREATE PUBLICATION publication_{unique_name};", fetch=False)
             # Add tables to publication
             query_publication = f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'"
-            if schema_excluded_str != "":
-                query_publication = query_publication + f" AND schemaname NOT IN ({schema_excluded_str})"
+            if db_infos.schema_excluded_str != "":
+                query_publication = query_publication + f" AND schemaname NOT IN ({db_infos.schema_excluded_str})"
             results = execute_query(conn_primary, query_publication)
-            if results: 
+            if results:
                 for schema, table in results:
                     print(
                         f"Add table {schema}.{table} to publication {unique_name}")
