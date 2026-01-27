@@ -10,9 +10,49 @@ on:
     branches: [ "main" ]
 
 permissions:
-  contents: write
-
+  contents: read
+  pages: write
+  id-token: write
+  
 jobs:
+  
+  test-coverage:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          cache: "pip"
+          python-version-file: "pyproject.toml"
+      - name: Install dependencies
+        run: |
+          uv sync --locked --all-extras --dev
+          pip install genbadge[tests,coverage]
+      - name: Test with pytest
+        run: |
+          uv run pytest -s --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
+      - name: Generate badges
+        if: github.ref == 'refs/heads/main'
+        run: |
+          genbadge tests -i htmlcov/junit.xml -o htmlcov/junit-badge.svg
+          genbadge coverage -i ./coverage.xml -o htmlcov/coverage-badge.svg
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './htmlcov/'
+      - name: deploy to Github Pages
+        uses: actions/deploy-pages@v4
+        id: deployment
+        
   matrix-prep:
     runs-on: ubuntu-latest
 
@@ -40,7 +80,7 @@ jobs:
           
           echo "include=$include_json" >> "$GITHUB_OUTPUT"
 
-  build:
+  matrix-test:
     needs: matrix-prep
     runs-on: ubuntu-latest
     continue-on-error: true
@@ -51,34 +91,25 @@ jobs:
     name: " PG-${{matrix.origin}}->PG-${{matrix.destination}} "
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup PostgreSQL
-      uses: tj-actions/install-postgresql@v3
-      with:
-        postgresql-version: ${{matrix.destination}}
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.10"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        pip install genbadge[tests,coverage]
-    - name: Test with pytest
-      env:
-        POSTGRES_ORIGIN_VERSION: ${{matrix.origin}}
-        POSTGRES_DESTINATION_VERSION: ${{matrix.destination}}
-      run: |
-        pytest -s --cov=. --cov-branch --cov-config=.coveragerc --doctest-modules --junitxml=htmlcov/junit.xml --cov-report=html --cov-report=xml --cov-report=json
-    - name: Generate badges
-      if: github.ref == 'refs/heads/main'
-      run: |
-        genbadge tests -i htmlcov/junit.xml -o coverage/junit-badge.svg
-        genbadge coverage -i ./coverage.xml -o coverage/coverage-badge.svg
-    - name: commit badges
-      if: github.ref == 'refs/heads/main'
-      uses: JamesIves/github-pages-deploy-action@v4
-      with:
-        branch: badges
-        folder: coverage
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          cache: "pip"
+          python-version-file: "pyproject.toml"
+      - name: Install dependencies
+        run: |
+          uv sync --locked --all-extras --dev
+          pip install genbadge[tests,coverage]
+      - name: Setup PostgreSQL
+        uses: tj-actions/install-postgresql@v3
+        with:
+          postgresql-version: ${{matrix.destination}}
+      - name: Test with pytest
+        env:
+          POSTGRES_ORIGIN_VERSION: ${{matrix.origin}}
+          POSTGRES_DESTINATION_VERSION: ${{matrix.destination}}
+        run: |
+          uv run pytest -s 
