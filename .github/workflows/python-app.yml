@@ -73,7 +73,7 @@ jobs:
                 for j in "${pgversion[@]}"
                 do
                   if [ "$i" -le "$j" ]; then
-                    jq -n -c "{origin:$i,destination:$j}"
+                    jq -n -c "{primary:$i,secondary:$j}"
                   fi
                 done
               done
@@ -90,7 +90,7 @@ jobs:
       matrix: 
         include: ${{fromJSON(needs.matrix-prep.outputs.include)}}
     
-    name: " PG-${{matrix.origin}}->PG-${{matrix.destination}} "
+    name: " PG-${{matrix.primary}}->PG-${{matrix.secondary}} "
 
     steps:
       - uses: actions/checkout@v4
@@ -108,10 +108,10 @@ jobs:
       - name: Setup PostgreSQL
         uses: tj-actions/install-postgresql@v3
         with:
-          postgresql-version: ${{matrix.destination}}
+          postgresql-version: ${{matrix.secondary}}
       - name: Test with pytest
         env:
-          POSTGRES_ORIGIN_VERSION: ${{matrix.origin}}
-          POSTGRES_DESTINATION_VERSION: ${{matrix.destination}}
+          POSTGRES_PRIMARY_VERSION: ${{matrix.primary}}
+          POSTGRES_SECONDARY_VERSION: ${{matrix.secondary}}
         run: |
           uv run pytest -s 

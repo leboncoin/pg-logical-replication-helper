@@ -18,11 +18,11 @@ FAKE_TIME = datetime.datetime(2026, 1, 22, 10, 1, 25)
 @pytest.fixture(scope="module", autouse=True)
 def setup(request):
     pg_dump_version = detect_pg_dump_version()
-    if "POSTGRES_ORIGIN_VERSION" not in os.environ:
-        os.environ["POSTGRES_ORIGIN_VERSION"] = pg_dump_version
+    if "POSTGRES_PRIMARY_VERSION" not in os.environ:
+        os.environ["POSTGRES_PRIMARY_VERSION"] = pg_dump_version
 
-    if "POSTGRES_DESTINATION_VERSION" not in os.environ:
-        os.environ["POSTGRES_DESTINATION_VERSION"] = pg_dump_version
+    if "POSTGRES_SECONDARY_VERSION" not in os.environ:
+        os.environ["POSTGRES_SECONDARY_VERSION"] = pg_dump_version
 
     compose = DockerCompose(
         context=".",
@@ -59,13 +59,13 @@ def setup_data(request):
     date_start = FAKE_TIME.strftime("%Y%m%d_%H%M%S")
     unique_name = f"foo_db_{date_start}"
     def clear_data():
-        with psycopg.connect(get_destination_url(), autocommit=True) as conn:
+        with psycopg.connect(get_secondary_url(), autocommit=True) as conn:
             conn.execute(f"ALTER SUBSCRIPTION subscription_{unique_name} DISABLE")
             conn.execute(f"ALTER SUBSCRIPTION subscription_{unique_name} SET (slot_name=none)")
             conn.execute(f"DROP SUBSCRIPTION subscription_{unique_name}")
             conn.execute(f"select pid, usename, state from pg_stat_activity where datname = 'foo_db'")
 
-        with psycopg.connect(get_destination_url("postgres"), autocommit=True) as conn:
+        with psycopg.connect(get_secondary_url("postgres"), autocommit=True) as conn:
             conn.execute("DROP DATABASE bar_db")
             conn.execute("CREATE DATABASE bar_db")
 
@@ -85,7 +85,7 @@ def get_source_url() -> str:
     return f"host={host} dbname={database} user={username} password={password} port={port}"
 
 
-def get_destination_url(db="bar_db") -> str:
+def get_secondary_url(db="bar_db") -> str:
     host = "localhost"
     port = "15432"
     username = "bar"
@@ -95,18 +95,18 @@ def get_destination_url(db="bar_db") -> str:
 
 
 def test_main():
-    replication_start.main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", None)
+    replication_start.main("test", get_source_url(), "foo_db", get_secondary_url(), "bar_db", None)
 
-    with psycopg.connect(get_destination_url(), autocommit=True) as conn:
+    with psycopg.connect(get_secondary_url(), autocommit=True) as conn:
         assert count_records(conn, "included", "table_to_replicate") == 2
         assert count_records(conn, "included", "table_to_replicate2") == 2
         assert count_records(conn, "excluded", "table_to_replicate3") == 2
 
 
 def test_main_with_excluded_schema():
-    replication_start.main("test", get_source_url(), "foo_db", get_destination_url(), "bar_db", ["excluded"])
+    replication_start.main("test", get_source_url(), "foo_db", get_secondary_url(), "bar_db", ["excluded"])
 
-    with psycopg.connect(get_destination_url(), autocommit=True) as conn:
+    with psycopg.connect(get_secondary_url(), autocommit=True) as conn:
         with conn.cursor() as cur:
             results = cur.execute("select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'")
             for schema, table in results:
