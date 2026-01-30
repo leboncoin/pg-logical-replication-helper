@@ -38,21 +38,11 @@ def test_database_execute_query_without_fetch(mocker):
     db = Database("{string connection}", "db_name")
     mock_connection = mocker.MagicMock()
     mocker.patch("psycopg.connect", return_value=mock_connection)
-
     mock_cursor = mocker.MagicMock()
-    mock_connection.cursor.return_value = mock_cursor
-    # mocker.patch("mock_connection.cursor", return_value=mock_cursor)
+    mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
 
     query = "SELECT 1;"
-    result = db.execute_query(query, False)
+    db.execute_query(query, False)
 
     mock_cursor.execute.assert_called_once_with(query)
-    mock_cursor.fetchall.assert_called_count == 0
-
-    # try:
-    #     conn.autocommit = True
-    #     with conn.cursor() as cur:
-    #         cur.execute(query)
-    #         if fetch:
-    #             results = cur.fetchall()
-    #             return results
+    mock_cursor.fetchall.assert_not_called()
