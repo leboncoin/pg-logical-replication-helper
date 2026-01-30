@@ -23,10 +23,21 @@ class Database:
                     results = cur.fetchall()
                     return results
         except Error as e:
-            print(f"Error {e} with query '{query}' on host '{self.conn_string}'", file=sys.stderr)
+            print(
+                f"Error {e} with query '{query}' on host '{self.conn_string}'", file=sys.stderr)
             return None
         finally:
             conn.close()
+
+    def get_db_connection(self):
+        # To move into execute_query?
+        try:
+            conn = psycopg.connect(self.conn_string)
+            return conn
+        except psycopg.Error as e:
+            print(
+                f"Error {e} on connection string {self.conn_string}", file=sys.stderr)
+            sys.exit(1)
 
     def retrieve_db_infos(self, list_schema_excluded) -> DbInfos:
         schema_excluded_str = ""
@@ -41,26 +52,18 @@ class Database:
         if results and results[0]:
             db_schemas = [schema[0] for schema in results]
 
-        results = self.execute_query(f"SELECT pg_size_pretty(pg_database_size('{self.db_name}'))")
+        results = self.execute_query(
+            f"SELECT pg_size_pretty(pg_database_size('{self.db_name}'))")
         db_size = None
         if results and results[0]:
             db_size = results[0][0]
 
-        results = self.execute_query("SELECT count(*) from pg_stat_user_tables")
+        results = self.execute_query(
+            "SELECT count(*) from pg_stat_user_tables")
         db_tables = None
         if results and results[0]:
             db_tables = results[0][0]
         return DbInfos(db_schemas, db_size, db_tables, schema_excluded_str)
-
-
-    def get_db_connection(self):
-        try:
-            conn = psycopg.connect(self.conn_string)
-            return conn
-        except psycopg.Error as e:
-            print(f"Error {e} on connection string {self.conn_string}", file=sys.stderr)
-            sys.exit(1)
-
 
 
 @dataclasses.dataclass
