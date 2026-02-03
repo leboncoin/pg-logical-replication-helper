@@ -46,3 +46,35 @@ def test_database_execute_query_without_fetch(mocker):
 
     mock_cursor.execute.assert_called_once_with(query)
     mock_cursor.fetchall.assert_not_called()
+    mock_connection.close.assert_called_once()
+
+
+def test_database_execute_query_with_fetch(mocker):
+    db = Database("{string connection}", "db_name")
+    mock_connection = mocker.MagicMock()
+    mocker.patch("psycopg.connect", return_value=mock_connection)
+    mock_cursor = mocker.MagicMock()
+    mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
+    mock_cursor.fetchall.return_value = [1]
+
+    query = "SELECT 1;"
+    result = db.execute_query(query)
+
+    assert result == [1]
+    mock_cursor.execute.assert_called_once_with(query)
+    mock_cursor.fetchall.assert_called_once()
+    mock_connection.close.assert_called_once()
+
+
+def test_database_execute_query_on_error(mocker, capsys):
+    db = Database("{string connection}", "db_name")
+    mock_connection = mocker.MagicMock()
+    mocker.patch("psycopg.connect", return_value=mock_connection)
+    mock_connection.cursor.return_value.__enter__.side_effect = psycopg.Error("<expected error>")
+
+    query = "SELECT 1;"
+    result = db.execute_query(query, False)
+
+    assert result is None
+    assert capsys.readouterr().err == "Error <expected error> with query 'SELECT 1;' on host '{string connection}'\n"
+    mock_connection.close.assert_called_once()
