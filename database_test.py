@@ -1,31 +1,31 @@
+from unittest.mock import sentinel
+
 import psycopg
 
 from database import Database
 
 
-def test_database_connection_return_none(mocker):
+def test_database_connection_return_the_connection_created_with_psycopg(mocker):
     db = Database("{string connection}", "db_name")
-    mocker.patch("psycopg.connect", return_value=None)
+    mocker.patch("psycopg.connect", return_value=sentinel.some_connection)
 
     connection = db.get_db_connection()
 
-    assert connection is None
+    assert connection is sentinel.some_connection
 
 
-def test_database_connection_return_exception(mocker, capsys):
+def test_database_connection_exit_and_log_exception(mocker, capsys):
     db = Database("{string connection}", "db_name")
-    mocker.patch("psycopg.connect",
-                 side_effect=psycopg.Error("<expected error>"))
+    mocker.patch("psycopg.connect", side_effect=psycopg.Error("<expected error>"))
     mocked_sys_exit = mocker.patch("sys.exit")
 
     db.get_db_connection()
 
     mocked_sys_exit.assert_called_once_with(1)
-    assert capsys.readouterr(
-    ).err == "Error <expected error> on connection string {string connection}\n"
+    assert capsys.readouterr().err == "Error <expected error> on connection string {string connection}\n"
 
 
-def test_execute_query_return_none_on_connection_none(mocker):
+def test_database_execute_query_return_none_on_connection_none(mocker):
     db = Database("{string connection}", "db_name")
     mocker.patch("psycopg.connect", return_value=None)
 
@@ -55,12 +55,12 @@ def test_database_execute_query_with_fetch(mocker):
     mocker.patch("psycopg.connect", return_value=mock_connection)
     mock_cursor = mocker.MagicMock()
     mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
-    mock_cursor.fetchall.return_value = [1]
+    mock_cursor.fetchall.return_value = sentinel.some_array
 
     query = "SELECT 1;"
     result = db.execute_query(query)
 
-    assert result == [1]
+    assert result == sentinel.some_array
     mock_cursor.execute.assert_called_once_with(query)
     mock_cursor.fetchall.assert_called_once()
     mock_connection.close.assert_called_once()
@@ -73,7 +73,7 @@ def test_database_execute_query_on_error(mocker, capsys):
     mock_connection.cursor.return_value.__enter__.side_effect = psycopg.Error("<expected error>")
 
     query = "SELECT 1;"
-    result = db.execute_query(query, False)
+    result = db.execute_query(query)
 
     assert result is None
     assert capsys.readouterr().err == "Error <expected error> with query 'SELECT 1;' on host '{string connection}'\n"

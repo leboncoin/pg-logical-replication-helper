@@ -10,13 +10,21 @@ class Database:
         self.conn_string = conn_string
         self.db_name = db_name
 
+    def get_db_connection(self):
+        try:
+            conn = psycopg.connect(self.conn_string, autocommit=True)
+            return conn
+        except psycopg.Error as e:
+            print(
+                f"Error {e} on connection string {self.conn_string}", file=sys.stderr)
+            sys.exit(1)
+
     def execute_query(self, query, fetch=True):
         conn = self.get_db_connection()
         if conn is None:
             return None
 
         try:
-            conn.autocommit = True
             with conn.cursor() as cur:
                 cur.execute(query)
                 if fetch:
@@ -28,16 +36,6 @@ class Database:
             return None
         finally:
             conn.close()
-
-    def get_db_connection(self):
-        # To move into execute_query?
-        try:
-            conn = psycopg.connect(self.conn_string)
-            return conn
-        except psycopg.Error as e:
-            print(
-                f"Error {e} on connection string {self.conn_string}", file=sys.stderr)
-            sys.exit(1)
 
     def retrieve_db_infos(self, list_schema_excluded) -> DbInfos:
         schema_excluded_str = ""
