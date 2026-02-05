@@ -10,6 +10,7 @@ import secrets
 import string
 
 from database import Database
+from primary import Primary
 
 WAITING_PROGRESS_IN_SECONDS = 10
 
@@ -205,7 +206,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     unique_name = f"{db_primary}_{date_start}"
 
     # Retrieve DB Infos
-    primary = Database(conn_primary, db_primary)
+    primary = Primary(Database(conn_primary, db_primary))
     db_infos = primary.retrieve_db_infos(list_schema_excluded)
     db_schemas = db_infos.db_schemas
     print(f"$today - Starting pg_dump from server {conn_primary} database {db_primary} {db_infos.db_size}")
