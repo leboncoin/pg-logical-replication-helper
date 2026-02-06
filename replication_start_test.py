@@ -94,6 +94,7 @@ def get_secondary_url(db="bar_db") -> str:
     return f"host={host} dbname={database} user={username} password={password} port={port}"
 
 
+@pytest.mark.slow
 def test_main():
     replication_start.main("test", get_source_url(), "foo_db", get_secondary_url(), "bar_db", None)
 
@@ -103,6 +104,7 @@ def test_main():
         assert count_records(conn, "excluded", "table_to_replicate3") == 2
 
 
+@pytest.mark.slow
 def test_main_with_excluded_schema():
     replication_start.main("test", get_source_url(), "foo_db", get_secondary_url(), "bar_db", ["excluded"])
 
