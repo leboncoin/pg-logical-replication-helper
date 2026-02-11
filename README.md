@@ -43,3 +43,25 @@ python replication_start.py <connection_primary> <db_name_primary> <connection_s
 ### Environment Variables
 
 - `CONN_DB_PRIMARY_FULL`: Full connection string for the primary database including credentials
+
+## Tests
+
+To run all the tests:
+```bash
+pytest
+```
+
+To run all one test:
+```bash
+pytest <filename>_test.py
+```
+
+To run only the slow tests (marked with @pytest.mark.slow):
+```bash
+pytest -m slow
+```
+
+To run the tests without the slow one:
+```bash
+pytest -m "not slow"
+```
