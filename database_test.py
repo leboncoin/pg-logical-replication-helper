@@ -1,6 +1,7 @@
 from unittest.mock import sentinel
 
 import psycopg
+import pytest
 
 from database import Database
 
@@ -78,3 +79,21 @@ def test_database_execute_query_on_error(mocker, capsys):
     assert result is None
     assert capsys.readouterr().err == "Error <expected error> with query 'SELECT 1;' on host '{string connection}'\n"
     mock_connection.close.assert_called_once()
+
+
+class DatabaseStub(Database):
+    def __init__(self):
+        self.recorded_queries = {}
+        super().__init__("{string connection}", "db_name")
+
+    def on_query_return(self, query, results):
+        self.recorded_queries.update({query: results})
+        
+    def execute_query(self, query, fetch=True):
+        try:
+            return self.recorded_queries[query]
+        except KeyError:
+            pytest.fail(f"The DatabaseStub don't have expected results for query \"{query}\".\nPlease use on_query_return method for this.")
+
+    def get_db_connection(self):
+        return None
