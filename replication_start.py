@@ -6,19 +6,11 @@ import time
 import psycopg
 from psycopg.errors import Error
 import re
-import secrets
-import string
 
 from database import Database
 from primary import Primary
 
 WAITING_PROGRESS_IN_SECONDS = 10
-
-
-def generate_password(length=32):
-    characters = string.ascii_letters + string.digits
-    password = ''.join(secrets.choice(characters) for _ in range(length))
-    return password
 
 
 def get_db_connection(conn_string):
@@ -212,27 +204,10 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
 
     # Check if replication is already started
     if not results:
-
         print("Replication not in progress")
         print(f"{today} - Starting process : {name} {conn_primary} {db_primary} - {conn_secondary} database {db_secondary}")
 
-        print(f" create replication user on {conn_primary}")
-        # Verify if replication user already exist
-        results = execute_query(
-            conn_primary, "SELECT count(rolname) FROM pg_roles WHERE rolname ='replication'")
-        if results and results[0][0] > 0:
-            print(f"user replication already exist")
-        else:
-            replication_password = generate_password()
-            execute_query(conn_primary, f"CREATE USER replication LOGIN ENCRYPTED PASSWORD '{replication_password}'; "
-                                        f"ALTER ROLE replication WITH REPLICATION", fetch=False)
-            print(f"user replication created")
-
-        for schema in db_schemas:
-            # Grant privileges on the schema
-            execute_query(conn_primary, f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO replication; "
-                                        f"GRANT USAGE ON SCHEMA {schema} TO replication", fetch=False)
-            print(f"GRANT right on {schema} to replication user")
+        primary.create_replication_user()
 
         # Section pre-data
         run_dump_restore_pre(conn_primary, db_schemas, conn_secondary)

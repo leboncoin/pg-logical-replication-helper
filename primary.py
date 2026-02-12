@@ -1,4 +1,6 @@
 import dataclasses
+import secrets
+import string
 
 from database import Database
 
@@ -37,14 +39,14 @@ class Primary:
         print(f"db_schemas : {db_schemas}")
         print(f"db_size : {db_size}")
         print(f"db_tables : {db_tables}")
-        
+
         return DbInfos(db_schemas, db_size, db_tables, schema_excluded_str)
 
     def create_publication(self, unique_name: str):
         print(
             f"Create publication on primary {self.db.conn_string} database {self.db.db_name}")
-    
-        self.db.execute_query(f"CREATE PUBLICATION publication_{unique_name};", 
+
+        self.db.execute_query(f"CREATE PUBLICATION publication_{unique_name};",
                               fetch=False)
         # Add tables to publication
         query_publication = f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'"
@@ -55,9 +57,27 @@ class Primary:
             for schema, table in results:
                 print(
                     f"Add table {schema}.{table} to publication {unique_name}")
-                self.db.execute_query(f"ALTER PUBLICATION publication_{unique_name} ADD TABLE {schema}.{table};", 
+                self.db.execute_query(f"ALTER PUBLICATION publication_{unique_name} ADD TABLE {schema}.{table};",
                                       fetch=False)
-    
+
+    def create_replication_user(self):
+        print(f" create replication user on {self.db.conn_string}")
+        # Verify if replication user already exist
+        results = self.db.execute_query("SELECT count(rolname) FROM pg_roles WHERE rolname ='replication'")
+        if results and results[0][0] > 0:
+            print(f"user replication already exist")
+        else:
+            replication_password = generate_password()
+            self.db.execute_query(f"CREATE USER replication LOGIN ENCRYPTED PASSWORD '{replication_password}'; "
+                                  f"ALTER ROLE replication WITH REPLICATION", fetch=False)
+            print(f"user replication created")
+
+        for schema in self.db_infos.db_schemas:
+            # Grant privileges on the schema
+            self.db.execute_query(f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO replication; "
+                                  f"GRANT USAGE ON SCHEMA {schema} TO replication", fetch=False)
+            print(f"GRANT right on {schema} to replication user")
+
 
 @dataclasses.dataclass
 class DbInfos:
@@ -66,3 +86,9 @@ class DbInfos:
         self.db_size = db_size
         self.db_tables = db_tables
         self.schema_excluded_str = schema_excluded_str
+
+
+def generate_password(length=32):
+    characters = string.ascii_letters + string.digits
+    password = ''.join(secrets.choice(characters) for _ in range(length))
+    return password
