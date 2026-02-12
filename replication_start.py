@@ -10,7 +10,7 @@ import secrets
 import string
 
 from database import Database
-from primary import Primary, DbInfos
+from primary import Primary
 
 WAITING_PROGRESS_IN_SECONDS = 10
 
@@ -197,13 +197,12 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     print(f"\n\nStarting script : {name} at {today}\n")
 
     # Retrieve DB Infos
-    primary = Primary(Database(conn_primary, db_primary))
-    db_infos = primary.retrieve_db_infos(list_schema_excluded)
-    db_schemas = db_infos.db_schemas
-    print(f"{today} - Starting pg_dump from server {conn_primary} database {db_primary} {db_infos.db_size}")
-    print(f"db_schemas : {db_infos.db_schemas}")
-    print(f"db_size : {db_infos.db_size}")
-    print(f"db_tables : {db_infos.db_tables}")
+    primary = Primary(Database(conn_primary, db_primary), list_schema_excluded)
+    db_schemas = primary.db_infos.db_schemas
+    print(f"{today} - Starting pg_dump from server {conn_primary} database {db_primary} {primary.db_infos.db_size}")
+    print(f"db_schemas : {primary.db_infos.db_schemas}")
+    print(f"db_size : {primary.db_infos.db_size}")
+    print(f"db_tables : {primary.db_infos.db_tables}")
 
     # Check if replication is already started
     query = f"select subslotname from pg_subscription where subname like 'subscription_{db_primary}_%'"
@@ -248,7 +247,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
         date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_name = f"{db_primary}_{date_start}"
 
-        primary.create_publication(db_infos, unique_name)
+        primary.create_publication(unique_name)
 
         # Create subscription on secondary
         subscription_name = f"subscription_{unique_name}"

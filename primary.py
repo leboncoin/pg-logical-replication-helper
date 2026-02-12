@@ -4,10 +4,11 @@ from database import Database
 
 
 class Primary:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, list_schema_excluded):
         self.db = db
+        self.db_infos = self._retrieve_db_infos(list_schema_excluded)
 
-    def retrieve_db_infos(self, list_schema_excluded) -> DbInfos:
+    def _retrieve_db_infos(self, list_schema_excluded) -> DbInfos:
         schema_excluded_str = ""
         if list_schema_excluded is None:
             schema_query = "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT ILIKE 'pg_%'"
@@ -33,7 +34,7 @@ class Primary:
             db_tables = results[0][0]
         return DbInfos(db_schemas, db_size, db_tables, schema_excluded_str)
 
-    def create_publication(self, db_infos: DbInfos, unique_name: str):
+    def create_publication(self, unique_name: str):
         print(
             f"Create publication on primary {self.db.conn_string} database {self.db.db_name}")
     
@@ -41,8 +42,8 @@ class Primary:
                               fetch=False)
         # Add tables to publication
         query_publication = f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'"
-        if db_infos.schema_excluded_str != "":
-            query_publication = query_publication + f" AND schemaname NOT IN ({db_infos.schema_excluded_str})"
+        if self.db_infos.schema_excluded_str != "":
+            query_publication = query_publication + f" AND schemaname NOT IN ({self.db_infos.schema_excluded_str})"
         results = self.db.execute_query(query_publication)
         if results:
             for schema, table in results:
