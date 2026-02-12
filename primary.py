@@ -32,6 +32,12 @@ class Primary:
         db_tables = None
         if results and results[0]:
             db_tables = results[0][0]
+
+        print(f"Starting pg_dump from server {self.db.conn_string} database {self.db.db_name} {db_size}")
+        print(f"db_schemas : {db_schemas}")
+        print(f"db_size : {db_size}")
+        print(f"db_tables : {db_tables}")
+        
         return DbInfos(db_schemas, db_size, db_tables, schema_excluded_str)
 
     def create_publication(self, unique_name: str):

@@ -199,10 +199,6 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     # Retrieve DB Infos
     primary = Primary(Database(conn_primary, db_primary), list_schema_excluded)
     db_schemas = primary.db_infos.db_schemas
-    print(f"{today} - Starting pg_dump from server {conn_primary} database {db_primary} {primary.db_infos.db_size}")
-    print(f"db_schemas : {primary.db_infos.db_schemas}")
-    print(f"db_size : {primary.db_infos.db_size}")
-    print(f"db_tables : {primary.db_infos.db_tables}")
 
     # Check if replication is already started
     query = f"select subslotname from pg_subscription where subname like 'subscription_{db_primary}_%'"
