@@ -189,12 +189,6 @@ def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiv
 
 
 def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_schema_excluded):
-    # Random replication password
-    replication_password = generate_password()
-
-    # Get the primary db connexion string fron environment
-    connection_primary_full = os.environ.get('CONN_DB_PRIMARY_FULL')
-
     print(f"START SCRIPT")
     print(f"python {name} {conn_primary} {db_primary} {conn_secondary} {db_secondary}")
 
@@ -202,20 +196,17 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     today = datetime.datetime.now().strftime("%Y%m%d-%H-%M-%S")
     print(f"\n\nStarting script : {name} at {today}\n")
 
-    date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    unique_name = f"{db_primary}_{date_start}"
-
     # Retrieve DB Infos
     primary = Primary(Database(conn_primary, db_primary))
     db_infos = primary.retrieve_db_infos(list_schema_excluded)
     db_schemas = db_infos.db_schemas
-    print(f"$today - Starting pg_dump from server {conn_primary} database {db_primary} {db_infos.db_size}")
+    print(f"{today} - Starting pg_dump from server {conn_primary} database {db_primary} {db_infos.db_size}")
     print(f"db_schemas : {db_infos.db_schemas}")
     print(f"db_size : {db_infos.db_size}")
     print(f"db_tables : {db_infos.db_tables}")
 
-    # # Check if replication is already started
-    query = f"select subslotname from pg_subscription where subname like 'subscription_{db_secondary}_%'"
+    # Check if replication is already started
+    query = f"select subslotname from pg_subscription where subname like 'subscription_{db_primary}_%'"
     print(f"psql \"{conn_secondary}\" --no-align -tc \"{query}\"")
     results = execute_query(conn_secondary, query)
     if results is None:
@@ -237,6 +228,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
             if results and results[0][0] > 0:
                 print(f"user replication already exist")
             else:
+                replication_password = generate_password()
                 execute_query(conn_primary, f"CREATE USER replication LOGIN ENCRYPTED PASSWORD '{replication_password}'; "
                                             f"ALTER ROLE replication WITH REPLICATION", fetch=False)
                 print(f"user replication created")
@@ -258,6 +250,9 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
             # Create publication on primary
             print(
                 f"Create publication on primary {conn_primary} database {db_primary}")
+            date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_name = f"{db_primary}_{date_start}"
+            
             execute_query(conn_primary,
                           f"CREATE PUBLICATION publication_{unique_name};", fetch=False)
             # Add tables to publication
@@ -276,6 +271,8 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
             subscription_name = f"subscription_{unique_name}"
             print(
                 f"Create subscription on secondary {conn_secondary} database {db_secondary}")
+            # Get the primary db connexion string fron environment
+            connection_primary_full = os.environ.get('CONN_DB_PRIMARY_FULL')
             execute_query(conn_secondary,
                           f"CREATE SUBSCRIPTION {subscription_name} CONNECTION '{connection_primary_full}' PUBLICATION publication_{unique_name} with (copy_data=true, create_slot=true, enabled=true, slot_name='{subscription_name}');",
                           fetch=False)

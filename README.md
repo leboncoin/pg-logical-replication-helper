@@ -51,7 +51,7 @@ To run all the tests:
 pytest
 ```
 
-To run all one test:
+To run one test:
 ```bash
 pytest <filename>_test.py
 ```
