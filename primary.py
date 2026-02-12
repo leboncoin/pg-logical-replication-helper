@@ -33,6 +33,24 @@ class Primary:
             db_tables = results[0][0]
         return DbInfos(db_schemas, db_size, db_tables, schema_excluded_str)
 
+    def create_publication(self, db_infos: DbInfos, unique_name: str):
+        print(
+            f"Create publication on primary {self.db.conn_string} database {self.db.db_name}")
+    
+        self.db.execute_query(f"CREATE PUBLICATION publication_{unique_name};", 
+                              fetch=False)
+        # Add tables to publication
+        query_publication = f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'"
+        if db_infos.schema_excluded_str != "":
+            query_publication = query_publication + f" AND schemaname NOT IN ({db_infos.schema_excluded_str})"
+        results = self.db.execute_query(query_publication)
+        if results:
+            for schema, table in results:
+                print(
+                    f"Add table {schema}.{table} to publication {unique_name}")
+                self.db.execute_query(f"ALTER PUBLICATION publication_{unique_name} ADD TABLE {schema}.{table};", 
+                                      fetch=False)
+    
 
 @dataclasses.dataclass
 class DbInfos:

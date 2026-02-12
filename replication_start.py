@@ -10,7 +10,7 @@ import secrets
 import string
 
 from database import Database
-from primary import Primary
+from primary import Primary, DbInfos
 
 WAITING_PROGRESS_IN_SECONDS = 10
 
@@ -212,134 +212,117 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     if results is None:
         print(
             f"Error on query {query} on host {conn_secondary}", file=sys.stderr)
+        print("end")
+        return
 
-    else:
+    # Check if replication is already started
+    if not results:
 
-        # Check if replication is already started
-        if not results:
+        print("Replication not in progress")
+        print(f"{today} - Starting process : {name} {conn_primary} {db_primary} - {conn_secondary} database {db_secondary}")
 
-            print("Replication not in progress")
-            print(f"{today} - Starting process : {name} {conn_primary} {db_primary} - {conn_secondary} database {db_secondary}")
-
-            print(f" create replication user on {conn_primary}")
-            # Verify if replication user already exist
-            results = execute_query(
-                conn_primary, "SELECT count(rolname) FROM pg_roles WHERE rolname ='replication'")
-            if results and results[0][0] > 0:
-                print(f"user replication already exist")
-            else:
-                replication_password = generate_password()
-                execute_query(conn_primary, f"CREATE USER replication LOGIN ENCRYPTED PASSWORD '{replication_password}'; "
-                                            f"ALTER ROLE replication WITH REPLICATION", fetch=False)
-                print(f"user replication created")
-
-            for schema in db_schemas:
-                # Grant privileges on the schema
-                execute_query(conn_primary, f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO replication; "
-                                            f"GRANT USAGE ON SCHEMA {schema} TO replication", fetch=False)
-                print(f"GRANT right on {schema} to replication user")
-
-            # Section pre-data
-            run_dump_restore_pre(conn_primary,
-                                 db_schemas, conn_secondary)
-
-            # Section post-data
-            run_dump_restore_post_onlypk(
-                conn_primary, db_schemas, conn_secondary)
-
-            # Create publication on primary
-            print(
-                f"Create publication on primary {conn_primary} database {db_primary}")
-            date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            unique_name = f"{db_primary}_{date_start}"
-            
-            execute_query(conn_primary,
-                          f"CREATE PUBLICATION publication_{unique_name};", fetch=False)
-            # Add tables to publication
-            query_publication = f"select schemaname, relname from pg_stat_user_tables where relname <> 'spatial_ref_sys'"
-            if db_infos.schema_excluded_str != "":
-                query_publication = query_publication + f" AND schemaname NOT IN ({db_infos.schema_excluded_str})"
-            results = execute_query(conn_primary, query_publication)
-            if results:
-                for schema, table in results:
-                    print(
-                        f"Add table {schema}.{table} to publication {unique_name}")
-                    execute_query(conn_primary,
-                                  f"ALTER PUBLICATION publication_{unique_name} ADD TABLE {schema}.{table};", fetch=False)
-
-            # Create subscription on secondary
-            subscription_name = f"subscription_{unique_name}"
-            print(
-                f"Create subscription on secondary {conn_secondary} database {db_secondary}")
-            # Get the primary db connexion string fron environment
-            connection_primary_full = os.environ.get('CONN_DB_PRIMARY_FULL')
-            execute_query(conn_secondary,
-                          f"CREATE SUBSCRIPTION {subscription_name} CONNECTION '{connection_primary_full}' PUBLICATION publication_{unique_name} with (copy_data=true, create_slot=true, enabled=true, slot_name='{subscription_name}');",
-                          fetch=False)
-
-        # Check if replication is still running
+        print(f" create replication user on {conn_primary}")
+        # Verify if replication user already exist
         results = execute_query(
-            conn_secondary, f"select subname from pg_subscription where subname like 'subscription_{db_primary}_%'")
-        if results:
-            subscription_name = results[0][0]
-            # Wait for the first step of replication to complete
-            while True:
-                print(
-                    f"Check if first step of replication is done - db {db_secondary} on host {conn_secondary} from {conn_primary} database {db_primary}")
-
-                query = "select a.* from pg_subscription_rel a inner join pg_class on srrelid=pg_class.oid where relname <> 'spatial_ref_sys' and srsubstate <> 'r';"
-                results = execute_query(conn_secondary, query)
-                if not results:
-                    break
-
-                try:
-                    execute_query(conn_secondary, query)
-                    print(
-                        "The first step of logical replication is not finished - retrying later")
-
-                    # Log progress
-                    progress_query = """
-                                     with ready as (select count(a.*) as ready
-                                                    from pg_subscription_rel a
-                                                             inner join pg_class on srrelid = pg_class.oid
-                                                    where relname <> 'spatial_ref_sys'
-                                                      and srsubstate = 'r'),
-                                          total as (select count(a.*) as total
-                                                    from pg_subscription_rel a
-                                                             inner join pg_class on srrelid = pg_class.oid
-                                                    where relname <> 'spatial_ref_sys')
-                                     select *
-                                     from ready,
-                                          total; \
-                                     """
-                    results = execute_query(conn_secondary, progress_query)
-                    print(
-                        f"Replication progress : {results[0][0]}/{results[0][1]}")
-
-                    time.sleep(WAITING_PROGRESS_IN_SECONDS)
-                except:
-                    # If the query fails, it means there are no more tables in non-ready state
-                    break
-
-            # Disable subscription
-            print(f"Disable subscription on {conn_secondary}")
-            query = f"ALTER SUBSCRIPTION {subscription_name} DISABLE;"
-            execute_query(conn_secondary, query, fetch=False)
-
-            # Restore post section without primary keys
-            print("Restore post section - without primary key")
-            run_dump_restore_post_without_pk(
-                conn_primary, db_schemas, conn_secondary)
-
-            # Enable subscription
-            print(f"Enable subscription on {conn_secondary}")
-            query = f"ALTER SUBSCRIPTION {subscription_name} ENABLE;"
-            execute_query(conn_secondary, query, fetch=False)
-
-            end_time = datetime.datetime.now().strftime("%Y%m%d-%H-%M-%S")
-            print(f"end={end_time}")
+            conn_primary, "SELECT count(rolname) FROM pg_roles WHERE rolname ='replication'")
+        if results and results[0][0] > 0:
+            print(f"user replication already exist")
         else:
-            print("No replication running, exiting")
+            replication_password = generate_password()
+            execute_query(conn_primary, f"CREATE USER replication LOGIN ENCRYPTED PASSWORD '{replication_password}'; "
+                                        f"ALTER ROLE replication WITH REPLICATION", fetch=False)
+            print(f"user replication created")
+
+        for schema in db_schemas:
+            # Grant privileges on the schema
+            execute_query(conn_primary, f"GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO replication; "
+                                        f"GRANT USAGE ON SCHEMA {schema} TO replication", fetch=False)
+            print(f"GRANT right on {schema} to replication user")
+
+        # Section pre-data
+        run_dump_restore_pre(conn_primary, db_schemas, conn_secondary)
+
+        # Section post-data
+        run_dump_restore_post_onlypk(conn_primary, db_schemas, conn_secondary)
+
+        date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_name = f"{db_primary}_{date_start}"
+
+        primary.create_publication(db_infos, unique_name)
+
+        # Create subscription on secondary
+        subscription_name = f"subscription_{unique_name}"
+        print(
+            f"Create subscription on secondary {conn_secondary} database {db_secondary}")
+        # Get the primary db connexion string fron environment
+        connection_primary_full = os.environ.get('CONN_DB_PRIMARY_FULL')
+        execute_query(conn_secondary,
+                      f"CREATE SUBSCRIPTION {subscription_name} CONNECTION '{connection_primary_full}' PUBLICATION publication_{unique_name} with (copy_data=true, create_slot=true, enabled=true, slot_name='{subscription_name}');",
+                      fetch=False)
+
+    # Check if replication is still running
+    results = execute_query(
+        conn_secondary, f"select subname from pg_subscription where subname like 'subscription_{db_primary}_%'")
+    if results:
+        subscription_name = results[0][0]
+        # Wait for the first step of replication to complete
+        while True:
+            print(
+                f"Check if first step of replication is done - db {db_secondary} on host {conn_secondary} from {conn_primary} database {db_primary}")
+
+            query = "select a.* from pg_subscription_rel a inner join pg_class on srrelid=pg_class.oid where relname <> 'spatial_ref_sys' and srsubstate <> 'r';"
+            results = execute_query(conn_secondary, query)
+            if not results:
+                break
+
+            try:
+                execute_query(conn_secondary, query)
+                print(
+                    "The first step of logical replication is not finished - retrying later")
+
+                # Log progress
+                progress_query = """
+                                 with ready as (select count(a.*) as ready
+                                                from pg_subscription_rel a
+                                                         inner join pg_class on srrelid = pg_class.oid
+                                                where relname <> 'spatial_ref_sys'
+                                                  and srsubstate = 'r'),
+                                      total as (select count(a.*) as total
+                                                from pg_subscription_rel a
+                                                         inner join pg_class on srrelid = pg_class.oid
+                                                where relname <> 'spatial_ref_sys')
+                                 select *
+                                 from ready,
+                                      total; \
+                                 """
+                results = execute_query(conn_secondary, progress_query)
+                print(
+                    f"Replication progress : {results[0][0]}/{results[0][1]}")
+
+                time.sleep(WAITING_PROGRESS_IN_SECONDS)
+            except:
+                # If the query fails, it means there are no more tables in non-ready state
+                break
+
+        # Disable subscription
+        print(f"Disable subscription on {conn_secondary}")
+        query = f"ALTER SUBSCRIPTION {subscription_name} DISABLE;"
+        execute_query(conn_secondary, query, fetch=False)
+
+        # Restore post section without primary keys
+        print("Restore post section - without primary key")
+        run_dump_restore_post_without_pk(
+            conn_primary, db_schemas, conn_secondary)
+
+        # Enable subscription
+        print(f"Enable subscription on {conn_secondary}")
+        query = f"ALTER SUBSCRIPTION {subscription_name} ENABLE;"
+        execute_query(conn_secondary, query, fetch=False)
+
+        end_time = datetime.datetime.now().strftime("%Y%m%d-%H-%M-%S")
+        print(f"end={end_time}")
+    else:
+        print("No replication running, exiting")
 
     print("end")
 
