@@ -220,15 +220,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
 
         primary.create_publication(unique_name)
 
-        # Create subscription on secondary
-        subscription_name = f"subscription_{unique_name}"
-        print(
-            f"Create subscription on secondary {conn_secondary} database {db_secondary}")
-        # Get the primary db connexion string fron environment
-        connection_primary_full = os.environ.get('CONN_DB_PRIMARY_FULL')
-        execute_query(conn_secondary,
-                      f"CREATE SUBSCRIPTION {subscription_name} CONNECTION '{connection_primary_full}' PUBLICATION publication_{unique_name} with (copy_data=true, create_slot=true, enabled=true, slot_name='{subscription_name}');",
-                      fetch=False)
+        secondary.create_subscription(unique_name)
 
     # Check if replication is still running
     results = secondary.get_subscription_name(db_primary)

@@ -1,3 +1,4 @@
+import os
 import sys
 from typing import Any
 
@@ -18,3 +19,13 @@ class Secondary:
             return None
         
         return results
+
+    def create_subscription(self, unique_name: str):
+        # Create subscription on secondary
+        subscription_name = f"subscription_{unique_name}"
+        print(
+            f"Create subscription on secondary {self.db.conn_string} database {self.db.db_name}")
+        # Get the primary db connexion string fron environment
+        connection_primary_full = os.environ.get('CONN_DB_PRIMARY_FULL')
+        self.db.execute_query(f"CREATE SUBSCRIPTION {subscription_name} CONNECTION '{connection_primary_full}' PUBLICATION publication_{unique_name} with (copy_data=true, create_slot=true, enabled=true, slot_name='{subscription_name}');",
+                      fetch=False)
