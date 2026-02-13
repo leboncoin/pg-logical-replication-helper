@@ -3,12 +3,14 @@ import subprocess
 import datetime
 import sys
 import time
+
 import psycopg
 from psycopg.errors import Error
 import re
 
 from database import Database
 from primary import Primary
+from secondary import Secondary
 
 WAITING_PROGRESS_IN_SECONDS = 10
 
@@ -192,13 +194,11 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     primary = Primary(Database(conn_primary, db_primary), list_schema_excluded)
     db_schemas = primary.db_infos.db_schemas
 
+    secondary = Secondary(Database(conn_secondary, db_secondary))
+    
     # Check if replication is already started
-    query = f"select subslotname from pg_subscription where subname like 'subscription_{db_primary}_%'"
-    print(f"psql \"{conn_secondary}\" --no-align -tc \"{query}\"")
-    results = execute_query(conn_secondary, query)
+    results = secondary.get_subscription_name(db_primary)
     if results is None:
-        print(
-            f"Error on query {query} on host {conn_secondary}", file=sys.stderr)
         print("end")
         return
 
@@ -231,25 +231,21 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
                       fetch=False)
 
     # Check if replication is still running
-    results = execute_query(
-        conn_secondary, f"select subname from pg_subscription where subname like 'subscription_{db_primary}_%'")
+    results = secondary.get_subscription_name(db_primary)
     if results:
         subscription_name = results[0][0]
         # Wait for the first step of replication to complete
+        print(
+            f"Check if first step of replication is done - db {db_secondary} on host {conn_secondary} from {conn_primary} database {db_primary}")
+        print(
+            "The first step of logical replication is not finished - retrying later")
+        query = "select a.* from pg_subscription_rel a inner join pg_class on srrelid=pg_class.oid where relname <> 'spatial_ref_sys' and srsubstate <> 'r';"
         while True:
-            print(
-                f"Check if first step of replication is done - db {db_secondary} on host {conn_secondary} from {conn_primary} database {db_primary}")
-
-            query = "select a.* from pg_subscription_rel a inner join pg_class on srrelid=pg_class.oid where relname <> 'spatial_ref_sys' and srsubstate <> 'r';"
-            results = execute_query(conn_secondary, query)
-            if not results:
-                break
-
             try:
-                execute_query(conn_secondary, query)
-                print(
-                    "The first step of logical replication is not finished - retrying later")
-
+                results = execute_query(conn_secondary, query)
+                if not results:
+                    break  
+                
                 # Log progress
                 progress_query = """
                                  with ready as (select count(a.*) as ready
