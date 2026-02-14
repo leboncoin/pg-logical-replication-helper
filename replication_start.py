@@ -228,9 +228,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
         secondary.wait_first_step_of_replication()
 
         # Disable subscription
-        print(f"Disable subscription on {conn_secondary}")
-        query = f"ALTER SUBSCRIPTION {subscription_name} DISABLE;"
-        execute_query(conn_secondary, query, fetch=False)
+        secondary.disable_subscription(subscription_name)
 
         # Restore post section without primary keys
         print("Restore post section - without primary key")
@@ -238,9 +236,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
             conn_primary, db_schemas, conn_secondary)
 
         # Enable subscription
-        print(f"Enable subscription on {conn_secondary}")
-        query = f"ALTER SUBSCRIPTION {subscription_name} ENABLE;"
-        execute_query(conn_secondary, query, fetch=False)
+        secondary.enable_subscription(subscription_name)
 
         end_time = datetime.datetime.now().strftime("%Y%m%d-%H-%M-%S")
         print(f"end={end_time}")
