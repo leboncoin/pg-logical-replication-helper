@@ -4,41 +4,11 @@ import datetime
 import sys
 
 import psycopg
-from psycopg.errors import Error
 import re
 
 from database import Database
 from primary import Primary
 from secondary import Secondary
-
-
-def get_db_connection(conn_string):
-    try:
-        conn = psycopg.connect(conn_string)
-        return conn
-    except psycopg.Error as e:
-        print(f"Error {e} on connection string {conn_string}", file=sys.stderr)
-        sys.exit(1)
-
-
-def execute_query(conn_string, query, fetch=True):
-    conn = get_db_connection(conn_string)
-    if conn is None:
-        return None
-
-    try:
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            cur.execute(query)
-            if fetch:
-                results = cur.fetchall()
-                return results
-    except Error as e:
-        print(
-            f"Error {e} with query '{query}' on host '{conn_string}'", file=sys.stderr)
-        return None
-    finally:
-        conn.close()
 
 
 def run_dump_restore_pre(conn_sender_string, db_schemas, conn_receiver_string):
@@ -192,7 +162,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     db_schemas = primary.db_infos.db_schemas
 
     secondary = Secondary(Database(conn_secondary, db_secondary))
-    
+
     # Check if replication is already started
     results = secondary.get_subscription_name(db_primary)
     if results is None:
