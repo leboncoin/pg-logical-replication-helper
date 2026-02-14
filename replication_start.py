@@ -2,7 +2,6 @@ import os
 import subprocess
 import datetime
 import sys
-import time
 
 import psycopg
 from psycopg.errors import Error
@@ -11,8 +10,6 @@ import re
 from database import Database
 from primary import Primary
 from secondary import Secondary
-
-WAITING_PROGRESS_IN_SECONDS = 10
 
 
 def get_db_connection(conn_string):
@@ -226,41 +223,9 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     results = secondary.get_subscription_name(db_primary)
     if results:
         subscription_name = results[0][0]
-        # Wait for the first step of replication to complete
         print(
             f"Check if first step of replication is done - db {db_secondary} on host {conn_secondary} from {conn_primary} database {db_primary}")
-        print(
-            "The first step of logical replication is not finished - retrying later")
-        query = "select a.* from pg_subscription_rel a inner join pg_class on srrelid=pg_class.oid where relname <> 'spatial_ref_sys' and srsubstate <> 'r';"
-        while True:
-            try:
-                results = execute_query(conn_secondary, query)
-                if not results:
-                    break  
-                
-                # Log progress
-                progress_query = """
-                                 with ready as (select count(a.*) as ready
-                                                from pg_subscription_rel a
-                                                         inner join pg_class on srrelid = pg_class.oid
-                                                where relname <> 'spatial_ref_sys'
-                                                  and srsubstate = 'r'),
-                                      total as (select count(a.*) as total
-                                                from pg_subscription_rel a
-                                                         inner join pg_class on srrelid = pg_class.oid
-                                                where relname <> 'spatial_ref_sys')
-                                 select *
-                                 from ready,
-                                      total; \
-                                 """
-                results = execute_query(conn_secondary, progress_query)
-                print(
-                    f"Replication progress : {results[0][0]}/{results[0][1]}")
-
-                time.sleep(WAITING_PROGRESS_IN_SECONDS)
-            except:
-                # If the query fails, it means there are no more tables in non-ready state
-                break
+        secondary.wait_first_step_of_replication()
 
         # Disable subscription
         print(f"Disable subscription on {conn_secondary}")

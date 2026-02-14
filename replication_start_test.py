@@ -2,6 +2,7 @@ import datetime
 import os
 import re
 import subprocess
+import time
 from typing import Any
 
 import psycopg
@@ -49,9 +50,12 @@ def patch_datetime_now(monkeypatch):
         @classmethod
         def now(cls, **kwargs):
             return FAKE_TIME
+        
+    def sleep(seconds: int):
+        pass
 
     monkeypatch.setattr(datetime, 'datetime', MockedDateTime)
-    monkeypatch.setattr(replication_start, "WAITING_PROGRESS_IN_SECONDS", 0)
+    monkeypatch.setattr(time, "sleep", sleep)
 
 
 @pytest.fixture(scope="function", autouse=True)
