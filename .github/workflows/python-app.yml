@@ -1,25 +1,17 @@
-# This workflow will install Python dependencies, run tests and lint with a single version of Python
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-
 name: Replication Helper
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "**" ]
   pull_request:
     branches: [ "main" ]
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
   
 jobs:
   
   test-coverage:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
 
     steps:
@@ -42,19 +34,27 @@ jobs:
         run: |
           genbadge tests -i htmlcov/junit.xml -o htmlcov/junit-badge.svg
           genbadge coverage -i ./coverage.xml -o htmlcov/coverage-badge.svg
-      - name: Setup Pages
-        if: ${{ github.event_name != 'pull_request' }}
-        uses: actions/configure-pages@v5
       - name: upload artifact
-        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-pages-artifact@v3
         with:
           path: './htmlcov/'
+        
+  deploy-gh-pages:
+    if: github.ref == 'refs/heads/main'
+    needs: test-coverage
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+
+    steps:
       - name: deploy to Github Pages
-        if: ${{ github.event_name != 'pull_request' }}
         uses: actions/deploy-pages@v4
         id: deployment
-        
+  
   matrix-prep:
     runs-on: ubuntu-latest
 
