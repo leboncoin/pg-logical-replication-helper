@@ -11,27 +11,9 @@ from primary import Primary
 from secondary import Secondary
 
 
-def run_dump_restore_pre(conn_sender_string, db_schemas, conn_receiver_string):
-    command = [
-        "pg_dump",
-        "-d", conn_sender_string,
-        "-Fp",
-        "-T", "public.spatial_ref_sys",
-        "--no-acl",
-        "--no-owner",
-        "--section=pre-data",
-        "-N", "information_schema"
-    ]
-    for schema in db_schemas:
-        command.append("-n")
-        command.append(schema)
+def run_dump_restore_pre(conn_receiver_string, primary: Primary):
+    dump_queries = primary.execute_dump()
 
-    print(f" dump section pre-data")
-    print(" ".join(command))
-
-    dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
-    dump_queries = dump.stdout.read()
-    
     print(f"pg_restore pre begin")
     queries = dump_queries.replace("CREATE SCHEMA public;", "")
     # ignore "\restrict" and "\unrestrict" lines
@@ -174,7 +156,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
         primary.create_replication_user()
 
         # Section pre-data
-        run_dump_restore_pre(conn_primary, db_schemas, conn_secondary)
+        run_dump_restore_pre(conn_secondary, primary)
 
         # Section post-data
         run_dump_restore_post_onlypk(conn_primary, db_schemas, conn_secondary)

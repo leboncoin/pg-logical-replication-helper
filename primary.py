@@ -1,6 +1,7 @@
 import dataclasses
 import secrets
 import string
+import subprocess
 
 from database import Database
 
@@ -79,6 +80,28 @@ class Primary:
             print(f"GRANT right on {schema} to replication user")
 
 
+    def execute_dump(self) -> str:
+        command = [
+            "pg_dump",
+            "-d", self.db.conn_string,
+            "-Fp",
+            "-T", "public.spatial_ref_sys",
+            "--no-acl",
+            "--no-owner",
+            "--section=pre-data",
+            "-N", "information_schema"
+        ]
+        for schema in self.db_infos.db_schemas:
+            command.append("-n")
+            command.append(schema)
+    
+        print(f" dump section pre-data")
+        print(" ".join(command))
+    
+        dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
+        dump_queries = dump.stdout.read()
+        return dump_queries
+
 @dataclasses.dataclass
 class DbInfos:
     def __init__(self, db_schemas, db_size, db_tables, schema_excluded_str):
@@ -92,3 +115,4 @@ def generate_password(length=32):
     characters = string.ascii_letters + string.digits
     password = ''.join(secrets.choice(characters) for _ in range(length))
     return password
+
