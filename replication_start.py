@@ -30,19 +30,18 @@ def run_dump_restore_pre(conn_sender_string, db_schemas, conn_receiver_string):
     print(" ".join(command))
 
     dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
-
+    dump_queries = dump.stdout.read()
+    
+    print(f"pg_restore pre begin")
+    queries = dump_queries.replace("CREATE SCHEMA public;", "")
+    # ignore "\restrict" and "\unrestrict" lines
+    queries = re.sub("\\\\(un)?restrict.*\n", "", queries)
+    
     # Connection to the database
     with psycopg.connect(conn_receiver_string) as conn:
         with conn.cursor() as cur:
             try:
-                print(f"pg_restore pre begin")
-                dump_queries = dump.stdout.read()
-                result = dump_queries.replace("CREATE SCHEMA public;", "")
-                # ignore "\restrict" and "\unrestrict" lines
-                result = re.sub("\\\\(un)?restrict.*\n", "", result)
-                cur.execute(result)
-
-                # Commit of the changes
+                cur.execute(queries)
                 conn.commit()
 
             except Exception as e:
@@ -69,29 +68,27 @@ def run_dump_restore_post_onlypk(conn_sender_string, db_schemas, conn_receiver_s
     print(" ".join(command))
 
     dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
+    dump_str = dump.stdout.read()
+    
+    print(f"pg_restore post début")
+    # ignore "\restrict" and "\unrestrict" lines
+    dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
+    splitlines = dump_str.splitlines()
+    queries = ""
+    for i in range(0, len(splitlines) - 1):
+        if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
+            queries = queries + \
+                            splitlines[i - 1] + splitlines[i]
 
     # Connection to the database
     with psycopg.connect(conn_receiver_string) as conn:
         with conn.cursor() as cur:
             try:
-                print(f"pg_restore post début")
-                dump_str = dump.stdout.read()
-                # ignore "\restrict" and "\unrestrict" lines
-                dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
-                splitlines = dump_str.splitlines()
-                current_query = ""
-                for i in range(0, len(splitlines) - 1):
-                    if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
-                        current_query = current_query + \
-                                        splitlines[i - 1] + splitlines[i]
-
-                cur.execute(current_query)
-
-                # Commit of changes
+                cur.execute(queries)
                 conn.commit()
 
             except Exception as e:
-                print(f"Une erreur s'est produite : {e}")
+                print(f"An error occurred: {e}")
                 conn.rollback()
 
     print(f"run_dump_restore_post fin")
@@ -114,38 +111,38 @@ def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiv
     print(" ".join(command))
 
     dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
+    dump_str = dump.stdout.read()
 
+    print(f"pg_restore post (without PK) début")
+    # ignore "\restrict" and "\unrestrict" lines
+    dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
+    splitlines = dump_str.splitlines()
+    queries = ""
+    line_before = ""
+    for i in range(0, len(splitlines) - 1):
+        # Skip primary key constraints
+        if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
+            line_before = ""
+            continue
+        else:
+            queries += line_before
+            line_before = splitlines[i] + "\n"
+
+    queries += line_before
+    
     # Connection to the database
     with psycopg.connect(conn_receiver_string) as conn:
         with conn.cursor() as cur:
             try:
-                print(f"pg_restore post (without PK) début")
-                dump_str = dump.stdout.read()
-                # ignore "\restrict" and "\unrestrict" lines
-                dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
-                splitlines = dump_str.splitlines()
-                current_query = ""
-                line_before = ""
-                for i in range(0, len(splitlines) - 1):
-                    # Skip primary key constraints
-                    if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
-                        line_before = ""
-                        continue
-                    else:
-                        current_query += line_before
-                        line_before = splitlines[i] + "\n"
-
-                current_query += line_before
-                cur.execute(current_query)
+                cur.execute(queries)
                 conn.commit()
 
-                print(f"pg_restore post (without PK) terminé avec succès")
-
             except Exception as e:
-                print(f"Une erreur s'est produite : {e}")
+                print(f"An error occurred: {e}")
                 conn.rollback()
 
         conn.rollback()
+        
     print(f"run_dump_restore_post_without_pk fin")
 
 
