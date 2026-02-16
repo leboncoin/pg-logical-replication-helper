@@ -80,7 +80,7 @@ class Primary:
             print(f"GRANT right on {schema} to replication user")
 
 
-    def execute_dump(self) -> str:
+    def execute_dump(self, section: str) -> str:
         command = [
             "pg_dump",
             "-d", self.db.conn_string,
@@ -88,14 +88,14 @@ class Primary:
             "-T", "public.spatial_ref_sys",
             "--no-acl",
             "--no-owner",
-            "--section=pre-data",
+            f"--section={section}",
             "-N", "information_schema"
         ]
         for schema in self.db_infos.db_schemas:
             command.append("-n")
             command.append(schema)
     
-        print(f" dump section pre-data")
+        print(f" dump section {section}")
         print(" ".join(command))
     
         dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)

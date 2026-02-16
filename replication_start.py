@@ -12,7 +12,7 @@ from secondary import Secondary
 
 
 def run_dump_restore_pre(conn_receiver_string, primary: Primary):
-    dump_queries = primary.execute_dump()
+    dump_queries = primary.execute_dump("pre-data")
 
     print(f"pg_restore pre begin")
     queries = dump_queries.replace("CREATE SCHEMA public;", "")
@@ -33,29 +33,13 @@ def run_dump_restore_pre(conn_receiver_string, primary: Primary):
     print(f"run_dump_restore_pre end")
 
 
-def run_dump_restore_post_onlypk(conn_sender_string, db_schemas, conn_receiver_string):
-    command = [
-        "pg_dump",
-        "-d", conn_sender_string,
-        "-Fp",
-        "-T", "public.spatial_ref_sys",
-        "--no-acl",
-        f"--section=post-data"
-    ]
-    for schema in db_schemas:
-        command.append("-n")
-        command.append(schema)
-
-    print(f" dump section post-data")
-    print(" ".join(command))
-
-    dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
-    dump_str = dump.stdout.read()
+def run_dump_restore_post_onlypk(conn_receiver_string, primary: Primary):
+    dump_queries = primary.execute_dump("post-data")
     
     print(f"pg_restore post début")
     # ignore "\restrict" and "\unrestrict" lines
-    dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
-    splitlines = dump_str.splitlines()
+    dump_queries = re.sub("\\\\(un)?restrict.*\n", "", dump_queries)
+    splitlines = dump_queries.splitlines()
     queries = ""
     for i in range(0, len(splitlines) - 1):
         if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
@@ -76,29 +60,13 @@ def run_dump_restore_post_onlypk(conn_sender_string, db_schemas, conn_receiver_s
     print(f"run_dump_restore_post fin")
 
 
-def run_dump_restore_post_without_pk(conn_sender_string, db_schemas, conn_receiver_string):
-    command = [
-        "pg_dump",
-        "-d", conn_sender_string,
-        "-Fp",
-        "-T", "public.spatial_ref_sys",
-        "--no-acl",
-        f"--section=post-data"
-    ]
-    for schema in db_schemas:
-        command.append("-n")
-        command.append(schema)
-
-    print(f" dump section post-data without primary keys")
-    print(" ".join(command))
-
-    dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
-    dump_str = dump.stdout.read()
+def run_dump_restore_post_without_pk(conn_receiver_string, primary: Primary):
+    dump_queries = primary.execute_dump("post-data")
 
     print(f"pg_restore post (without PK) début")
     # ignore "\restrict" and "\unrestrict" lines
-    dump_str = re.sub("\\\\(un)?restrict.*\n", "", dump_str)
-    splitlines = dump_str.splitlines()
+    dump_queries = re.sub("\\\\(un)?restrict.*\n", "", dump_queries)
+    splitlines = dump_queries.splitlines()
     queries = ""
     line_before = ""
     for i in range(0, len(splitlines) - 1):
@@ -159,7 +127,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
         run_dump_restore_pre(conn_secondary, primary)
 
         # Section post-data
-        run_dump_restore_post_onlypk(conn_primary, db_schemas, conn_secondary)
+        run_dump_restore_post_onlypk(conn_secondary, primary)
 
         date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_name = f"{db_primary}_{date_start}"
@@ -181,8 +149,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
 
         # Restore post section without primary keys
         print("Restore post section - without primary key")
-        run_dump_restore_post_without_pk(
-            conn_primary, db_schemas, conn_secondary)
+        run_dump_restore_post_without_pk(conn_secondary, primary)
 
         # Enable subscription
         secondary.enable_subscription(subscription_name)
