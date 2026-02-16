@@ -81,6 +81,42 @@ def test_database_execute_query_on_error(mocker, capsys):
     mock_connection.close.assert_called_once()
 
 
+def test_database_execute_query_rollback_on_error_commit_on_success(mocker):
+    db = Database("{string connection}", "db_name")
+    mock_connection = mocker.MagicMock()
+    mock_cursor = mocker.MagicMock()
+    mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
+
+    mock_db_connect = mocker.MagicMock()
+    mock_db_connect.return_value.__enter__.return_value = mock_connection
+    with mocker.patch("psycopg.connect", mock_db_connect): 
+        query = "SELECT 1;"
+        db.execute_query_rollback_on_error(query)
+
+    mock_cursor.execute.assert_called_once_with(query)
+    mock_connection.commit.assert_called_once()
+    mock_connection.rollback.assert_not_called()
+
+
+def test_database_execute_query_rollback_on_error(mocker, capsys):
+    db = Database("{string connection}", "db_name")
+    mock_connection = mocker.MagicMock()
+    mock_cursor = mocker.MagicMock()
+    mock_connection.cursor.return_value.__enter__.return_value = mock_cursor
+    mock_cursor.execute.side_effect = psycopg.Error("<expected error>")
+
+    mock_db_connect = mocker.MagicMock()
+    mock_db_connect.return_value.__enter__.return_value = mock_connection
+    with mocker.patch("psycopg.connect", mock_db_connect):
+        query = "SELECT 1;"
+        db.execute_query_rollback_on_error(query)
+
+    mock_cursor.execute.assert_called_once_with(query)
+    mock_connection.commit.assert_not_called()
+    mock_connection.rollback.assert_called_once()
+    assert capsys.readouterr().err == "An error occurred: <expected error>\n"
+
+
 class DatabaseStub(Database):
     def __init__(self):
         self.recorded_queries = {}
