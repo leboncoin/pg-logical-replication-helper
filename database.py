@@ -36,4 +36,13 @@ class Database:
         finally:
             conn.close()
 
-
+    def execute_query_rollback_on_error(self, queries: str):
+        with psycopg.connect(self.conn_string) as conn:
+            with conn.cursor() as cur:
+                try:
+                    cur.execute(queries)
+                    conn.commit()
+    
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+                    conn.rollback()

@@ -1,41 +1,29 @@
-import os
-import subprocess
 import datetime
-import sys
-
-import psycopg
+import os
 import re
+import sys
 
 from database import Database
 from primary import Primary
 from secondary import Secondary
 
 
-def run_dump_restore_pre(conn_receiver_string, primary: Primary):
+def run_dump_restore_pre(primary: Primary, secondary: Secondary):
     dump_queries = primary.execute_dump("pre-data")
 
     print(f"pg_restore pre begin")
     queries = dump_queries.replace("CREATE SCHEMA public;", "")
     # ignore "\restrict" and "\unrestrict" lines
     queries = re.sub("\\\\(un)?restrict.*\n", "", queries)
-    
-    # Connection to the database
-    with psycopg.connect(conn_receiver_string) as conn:
-        with conn.cursor() as cur:
-            try:
-                cur.execute(queries)
-                conn.commit()
 
-            except Exception as e:
-                print(f"An error occurred: {e}")
-                conn.rollback()
+    secondary.db.execute_query_rollback_on_error(queries)
 
     print(f"run_dump_restore_pre end")
 
 
-def run_dump_restore_post_onlypk(conn_receiver_string, primary: Primary):
+def run_dump_restore_post_only_pk(primary: Primary, secondary: Secondary):
     dump_queries = primary.execute_dump("post-data")
-    
+
     print(f"pg_restore post début")
     # ignore "\restrict" and "\unrestrict" lines
     dump_queries = re.sub("\\\\(un)?restrict.*\n", "", dump_queries)
@@ -44,23 +32,14 @@ def run_dump_restore_post_onlypk(conn_receiver_string, primary: Primary):
     for i in range(0, len(splitlines) - 1):
         if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
             queries = queries + \
-                            splitlines[i - 1] + splitlines[i]
+                      splitlines[i - 1] + splitlines[i]
 
-    # Connection to the database
-    with psycopg.connect(conn_receiver_string) as conn:
-        with conn.cursor() as cur:
-            try:
-                cur.execute(queries)
-                conn.commit()
-
-            except Exception as e:
-                print(f"An error occurred: {e}")
-                conn.rollback()
+    secondary.db.execute_query_rollback_on_error(queries)
 
     print(f"run_dump_restore_post fin")
 
 
-def run_dump_restore_post_without_pk(conn_receiver_string, primary: Primary):
+def run_dump_restore_post_without_pk(primary: Primary, secondary: Secondary):
     dump_queries = primary.execute_dump("post-data")
 
     print(f"pg_restore post (without PK) début")
@@ -79,20 +58,9 @@ def run_dump_restore_post_without_pk(conn_receiver_string, primary: Primary):
             line_before = splitlines[i] + "\n"
 
     queries += line_before
-    
-    # Connection to the database
-    with psycopg.connect(conn_receiver_string) as conn:
-        with conn.cursor() as cur:
-            try:
-                cur.execute(queries)
-                conn.commit()
 
-            except Exception as e:
-                print(f"An error occurred: {e}")
-                conn.rollback()
+    secondary.db.execute_query_rollback_on_error(queries)
 
-        conn.rollback()
-        
     print(f"run_dump_restore_post_without_pk fin")
 
 
@@ -124,10 +92,10 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
         primary.create_replication_user()
 
         # Section pre-data
-        run_dump_restore_pre(conn_secondary, primary)
+        run_dump_restore_pre(primary, secondary)
 
         # Section post-data
-        run_dump_restore_post_onlypk(conn_secondary, primary)
+        run_dump_restore_post_only_pk(primary, secondary)
 
         date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         unique_name = f"{db_primary}_{date_start}"
@@ -149,7 +117,7 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
 
         # Restore post section without primary keys
         print("Restore post section - without primary key")
-        run_dump_restore_post_without_pk(conn_secondary, primary)
+        run_dump_restore_post_without_pk(primary, secondary)
 
         # Enable subscription
         secondary.enable_subscription(subscription_name)
