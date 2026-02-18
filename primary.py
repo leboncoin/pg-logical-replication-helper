@@ -80,7 +80,7 @@ class Primary:
             print(f"GRANT right on {schema} to replication user")
 
 
-    def execute_dump(self, section: str) -> str:
+    def execute_dump(self, section: str):
         command = [
             "pg_dump",
             "-d", self.db.conn_string,
@@ -98,9 +98,8 @@ class Primary:
         print(f" dump section {section}")
         print(" ".join(command))
     
-        dump = subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
-        dump_queries = dump.stdout.read()
-        return dump_queries
+        return subprocess.Popen(command, stdout=subprocess.PIPE, text=True)
+        
 
 @dataclasses.dataclass
 class DbInfos:
