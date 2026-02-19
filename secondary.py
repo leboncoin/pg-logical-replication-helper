@@ -1,5 +1,7 @@
 import os
+import re
 import time
+from subprocess import Popen
 
 from database import Database
 
@@ -72,3 +74,47 @@ class Secondary:
     def enable_subscription(self, subscription_name):
         print(f"Enable subscription on {self.db.conn_string}")
         self.db.execute_query(f"ALTER SUBSCRIPTION {subscription_name} ENABLE;", fetch=False)
+
+    def execute_pre_data_dump(self, dump: Popen[str]):
+        dump_queries = dump.stdout.read()
+    
+        queries = dump_queries.replace("CREATE SCHEMA public;", "")
+        # ignore "\restrict" and "\unrestrict" lines
+        queries = re.sub("\\\\(un)?restrict.*\n", "", queries)
+    
+        self.db.execute_query_rollback_on_error(queries)
+
+    def execute_post_data_dump_only_pk(self, dump: Popen[str]):
+        dump_queries = dump.stdout.read()
+    
+        # ignore "\restrict" and "\unrestrict" lines
+        dump_queries = re.sub("\\\\(un)?restrict.*\n", "", dump_queries)
+        splitlines = dump_queries.splitlines()
+        queries = ""
+        for i in range(0, len(splitlines) - 1):
+            if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
+                queries = queries + \
+                          splitlines[i - 1] + splitlines[i]
+    
+        self.db.execute_query_rollback_on_error(queries)
+
+    def execute_post_data_dump_without_pk(self, dump: Popen[str]):
+        dump_queries = dump.stdout.read()
+    
+        # ignore "\restrict" and "\unrestrict" lines
+        dump_queries = re.sub("\\\\(un)?restrict.*\n", "", dump_queries)
+        splitlines = dump_queries.splitlines()
+        queries = ""
+        line_before = ""
+        for i in range(0, len(splitlines) - 1):
+            # Skip primary key constraints
+            if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
+                line_before = ""
+                continue
+            else:
+                queries += line_before
+                line_before = splitlines[i] + "\n"
+    
+        queries += line_before
+    
+        self.db.execute_query_rollback_on_error(queries)

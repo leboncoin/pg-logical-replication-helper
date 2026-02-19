@@ -1,6 +1,5 @@
 import datetime
 import os
-import re
 import sys
 
 from database import Database
@@ -12,13 +11,7 @@ def run_dump_restore_pre(primary: Primary, secondary: Secondary):
     print(f"pg_restore pre begin")
     
     with primary.execute_dump("pre-data") as dump:
-        dump_queries = dump.stdout.read()
-        
-        queries = dump_queries.replace("CREATE SCHEMA public;", "")
-        # ignore "\restrict" and "\unrestrict" lines
-        queries = re.sub("\\\\(un)?restrict.*\n", "", queries)
-    
-        secondary.db.execute_query_rollback_on_error(queries)
+        secondary.execute_pre_data_dump(dump)
 
     print(f"run_dump_restore_pre end")
 
@@ -27,18 +20,7 @@ def run_dump_restore_post_only_pk(primary: Primary, secondary: Secondary):
     print(f"pg_restore post begin")
     
     with primary.execute_dump("post-data") as dump:
-        dump_queries = dump.stdout.read()
-        
-        # ignore "\restrict" and "\unrestrict" lines
-        dump_queries = re.sub("\\\\(un)?restrict.*\n", "", dump_queries)
-        splitlines = dump_queries.splitlines()
-        queries = ""
-        for i in range(0, len(splitlines) - 1):
-            if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
-                queries = queries + \
-                          splitlines[i - 1] + splitlines[i]
-    
-        secondary.db.execute_query_rollback_on_error(queries)
+        secondary.execute_post_data_dump_only_pk(dump)
 
     print(f"run_dump_restore_post end")
 
@@ -47,25 +29,7 @@ def run_dump_restore_post_without_pk(primary: Primary, secondary: Secondary):
     print(f"pg_restore post (without PK) begin")
     
     with primary.execute_dump("post-data") as dump:
-        dump_queries = dump.stdout.read()
-        
-        # ignore "\restrict" and "\unrestrict" lines
-        dump_queries = re.sub("\\\\(un)?restrict.*\n", "", dump_queries)
-        splitlines = dump_queries.splitlines()
-        queries = ""
-        line_before = ""
-        for i in range(0, len(splitlines) - 1):
-            # Skip primary key constraints
-            if re.match(r'.*ADD CONSTRAINT.*PRIMARY KEY.*', splitlines[i]):
-                line_before = ""
-                continue
-            else:
-                queries += line_before
-                line_before = splitlines[i] + "\n"
-
-        queries += line_before
-    
-        secondary.db.execute_query_rollback_on_error(queries)
+        secondary.execute_post_data_dump_without_pk(dump)
 
     print(f"run_dump_restore_post_without_pk end")
 
