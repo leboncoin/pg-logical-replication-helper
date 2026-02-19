@@ -4,34 +4,8 @@ import sys
 
 from database import Database
 from primary import Primary
+from replication import Replication
 from secondary import Secondary
-
-
-def run_dump_restore_pre(primary: Primary, secondary: Secondary):
-    print(f"pg_restore pre begin")
-    
-    with primary.execute_dump("pre-data") as dump:
-        secondary.execute_pre_data_dump(dump)
-
-    print(f"run_dump_restore_pre end")
-
-
-def run_dump_restore_post_only_pk(primary: Primary, secondary: Secondary):
-    print(f"pg_restore post begin")
-    
-    with primary.execute_dump("post-data") as dump:
-        secondary.execute_post_data_dump_only_pk(dump)
-
-    print(f"run_dump_restore_post end")
-
-
-def run_dump_restore_post_without_pk(primary: Primary, secondary: Secondary):
-    print(f"pg_restore post (without PK) begin")
-    
-    with primary.execute_dump("post-data") as dump:
-        secondary.execute_post_data_dump_without_pk(dump)
-
-    print(f"run_dump_restore_post_without_pk end")
 
 
 def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_schema_excluded):
@@ -44,56 +18,8 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
 
     primary = Primary(Database(conn_primary, db_primary), list_schema_excluded)
     secondary = Secondary(Database(conn_secondary, db_secondary))
-
-    # Check if replication is already started
-    subscription_name = secondary.get_subscription_name(db_primary)
-    if subscription_name is None:
-        print("end")
-        return
-
-    # Check if replication is already started
-    if subscription_name == "":
-        print("Replication not in progress")
-        print(f"{today} - Starting process : {name} {conn_primary} {db_primary} - {conn_secondary} database {db_secondary}")
-
-        primary.create_replication_user()
-
-        # Section pre-data
-        run_dump_restore_pre(primary, secondary)
-
-        # Section post-data
-        run_dump_restore_post_only_pk(primary, secondary)
-
-        date_start = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        unique_name = f"{db_primary}_{date_start}"
-
-        primary.create_publication(unique_name)
-
-        secondary.create_subscription(unique_name)
-
-    # Check if replication is still running
-    subscription_name = secondary.get_subscription_name(db_primary)
-    if subscription_name:
-        print(
-            f"Check if first step of replication is done - db {db_secondary} on host {conn_secondary} from {conn_primary} database {db_primary}")
-        secondary.wait_first_step_of_replication()
-
-        # Disable subscription
-        secondary.disable_subscription(subscription_name)
-
-        # Restore post section without primary keys
-        print("Restore post section - without primary key")
-        run_dump_restore_post_without_pk(primary, secondary)
-
-        # Enable subscription
-        secondary.enable_subscription(subscription_name)
-
-        end_time = datetime.datetime.now().strftime("%Y%m%d-%H-%M-%S")
-        print(f"end={end_time}")
-    else:
-        print("No replication running, exiting")
-
-    print("end")
+    replication = Replication(primary, secondary)
+    replication.run(name, today)
 
 
 if __name__ == '__main__':
