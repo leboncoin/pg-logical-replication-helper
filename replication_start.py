@@ -78,20 +78,17 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
     today = datetime.datetime.now().strftime("%Y%m%d-%H-%M-%S")
     print(f"\n\nStarting script : {name} at {today}\n")
 
-    # Retrieve DB Infos
     primary = Primary(Database(conn_primary, db_primary), list_schema_excluded)
-    db_schemas = primary.db_infos.db_schemas
-
     secondary = Secondary(Database(conn_secondary, db_secondary))
 
     # Check if replication is already started
-    results = secondary.get_subscription_name(db_primary)
-    if results is None:
+    subscription_name = secondary.get_subscription_name(db_primary)
+    if subscription_name is None:
         print("end")
         return
 
     # Check if replication is already started
-    if not results:
+    if subscription_name == "":
         print("Replication not in progress")
         print(f"{today} - Starting process : {name} {conn_primary} {db_primary} - {conn_secondary} database {db_secondary}")
 
@@ -111,9 +108,8 @@ def main(name, conn_primary, db_primary, conn_secondary, db_secondary, list_sche
         secondary.create_subscription(unique_name)
 
     # Check if replication is still running
-    results = secondary.get_subscription_name(db_primary)
-    if results:
-        subscription_name = results[0][0]
+    subscription_name = secondary.get_subscription_name(db_primary)
+    if subscription_name:
         print(
             f"Check if first step of replication is done - db {db_secondary} on host {conn_secondary} from {conn_primary} database {db_primary}")
         secondary.wait_first_step_of_replication()
